@@ -2,7 +2,19 @@
 import re
 import json
 
+def ctype_to_pack_format(t):
+    """Return struct pack/unpack format from c type"""
+    if t == "uint8_t":
+        return "B"
+    elif t == "int8_t":
+        return "b"
+    elif t == "uint32_t":
+        return "I"
+    elif t == "int32_t":
+        return "i"
+
 class StructField(object):
+    """Field of a structure/message"""
     def __init__(self, name, field_type, desc):
         self.name = name
         self.field_type = field_type
@@ -30,9 +42,21 @@ class MessageElt(object):
         out = re.sub("(^|\n)", r"\1" + indent_prefix, out)
         return out
 
-    #def get_class_py_def(self, indent=4, level=0):
-    #   """Return string with python class declaration"""
+    def get_class_py_def(self, indent=4, level=0):
+        """Return string with python class declaration"""
+        current_level = 0
+        out = "# %s\n" % self.desc
+        out += "class %s(object):\n" % self.name
+        current_level = current_level + 1
+        field_names = [f.name for f in self.fields]
+        out += "%sdef __init__(self, %s)\n" % (current_level*indent*" ",
+                                               ', '.join(field_names))
+        current_level = current_level + 1
+        for f in field_names:
+            out += "%sself.%s = %s\n" % (current_level*indent*" ", f, f)
 
+        out = re.sub("(^|\n)", r"\1" + level*indent*" ", out)
+        return out
 
     def check_message(self):
         """Verify message has unique field names"""
@@ -106,6 +130,8 @@ def main():
     for m in messages["messages"]:
         msg_elt = MessageElt(m)
         print(msg_elt.get_struct_c_def(4))
+        print()
+        print(msg_elt.get_class_py_def())
     for e in messages["enums"]:
         enum_elt = EnumElt(e)
         print(enum_elt.get_enum_c_def(3,1))
