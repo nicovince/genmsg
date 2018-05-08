@@ -27,34 +27,63 @@ class MessageElt(object):
         self.id = message["id"]
         self.name = message["name"]
         self.desc = message["desc"]
+
         fields = message["fields"]
         self.fields = [StructField(f["name"], f["type"], f["desc"]) for f in fields]
+
         self.check_message()
 
     def get_struct_c_def(self, indent=4, level=0):
         """Return string with C struct declaration properly indented"""
         indent_prefix = level*indent*" "
+
         out = "/* %s */\n" % (self.desc)
         out += "typedef struct {\n"
+
         for f in self.fields:
             out += "%s%s %s; /* %s */\n" % (indent*" ", f.field_type, f.name, f.desc)
+
         out += "} %s_t;" % (self.name)
+
         out = re.sub("(^|\n)", r"\1" + indent_prefix, out)
         return out
 
     def get_class_py_def(self, indent=4, level=0):
         """Return string with python class declaration"""
+        # Field names of Message
+        field_names = [f.name for f in self.fields]
         current_level = 0
+
+        # Class definition
         out = "# %s\n" % self.desc
         out += "class %s(object):\n" % self.name
         current_level = current_level + 1
-        field_names = [f.name for f in self.fields]
-        out += "%sdef __init__(self, %s)\n" % (current_level*indent*" ",
+
+        # Constructor definition
+        out += "%sdef __init__(self, %s):\n" % (current_level*indent*" ",
                                                ', '.join(field_names))
         current_level = current_level + 1
+        # assign fields
         for f in field_names:
             out += "%sself.%s = %s\n" % (current_level*indent*" ", f, f)
 
+        out = re.sub("(^|\n)", r"\1" + level*indent*" ", out)
+        return out
+
+    def get_pack_py_def(self, indent=4, level=0):
+        """Return packing function"""
+        # Field names of message
+        field_names = [f.name for f in self.fields]
+        # struct pack/unpack format
+        struct_format = ""
+        for f in self.fields:
+            struct_format += ctype_to_pack_format(f.field_type)
+
+        # pack method definition
+        out = "def pack(self):\n"
+        out += "%sreturn struct.pack(\"<%s\", self.%s)" % (level*indent*" ",
+                                                          struct_format,
+                                                          ', self.'.join(field_names))
         out = re.sub("(^|\n)", r"\1" + level*indent*" ", out)
         return out
 
@@ -132,6 +161,8 @@ def main():
         print(msg_elt.get_struct_c_def(4))
         print()
         print(msg_elt.get_class_py_def())
+        print()
+        print(msg_elt.get_pack_py_def(4,1))
     for e in messages["enums"]:
         enum_elt = EnumElt(e)
         print(enum_elt.get_enum_c_def(3,1))
