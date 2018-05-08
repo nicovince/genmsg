@@ -1,0 +1,32 @@
+{
+    "messages":
+    [
+        {
+            "id":0, "name": "msg_name", "desc":"message desc",
+            "fields": [
+                {"name":"field1", "type":"uint8_t", "desc":"field1 description"},
+                {"name":"field2", "type":"uint32_t", "desc":"field2 description"}
+            ]
+        },
+        {
+            "id":1, "name": "msg1_name", "desc":"message description",
+            "fields": [
+                {"name":"fiel1", "type":"uint8_t", "desc":"field1 description"},
+                {"name":"fiel2", "type":"uint32_t", "desc":"field2 description"}
+            ]
+        }
+    ],
+
+    "enums":
+    [
+        {
+            "name":"enum_name", "desc":"enum description",
+            "entries": [
+                {"entry":"SEL_A", "value":0, "desc":"sel A desc"},
+                {"entry":"SEL_B", "value":1, "desc":"sel B desc"}
+            ]
+        }
+    ]
+
+
+}
