@@ -2,75 +2,101 @@
 import re
 import json
 
+class StructField(object):
+    def __init__(self, name, field_type, desc):
+        self.name = name
+        self.field_type = field_type
+        self.desc = desc
+
 class MessageElt(object):
     """Message object created from json file"""
     def __init__(self, message):
         self.message = message
+        self.id = message["id"]
+        self.name = message["name"]
+        self.desc = message["desc"]
+        fields = message["fields"]
+        self.fields = [StructField(f["name"], f["type"], f["desc"]) for f in fields]
         self.check_message()
 
     def get_struct_c_def(self, indent=4, level=0):
         """Return string with C struct declaration properly indented"""
         indent_prefix = level*indent*" "
-        out = "/* %s */\n" % (self.message["desc"])
+        out = "/* %s */\n" % (self.desc)
         out += "typedef struct {\n"
-        for f in self.message["fields"]:
-            out += "%s%s %s; /* %s */\n" % (indent*" ", f["type"], f["name"], f["desc"])
-        out += "} %s_t;" % (self.message["name"])
+        for f in self.fields:
+            out += "%s%s %s; /* %s */\n" % (indent*" ", f.field_type, f.name, f.desc)
+        out += "} %s_t;" % (self.name)
         out = re.sub("(^|\n)", r"\1" + indent_prefix, out)
         return out
+
+    #def get_class_py_def(self, indent=4, level=0):
+    #   """Return string with python class declaration"""
+
 
     def check_message(self):
         """Verify message has unique field names"""
         # Check names duplicates
-        names = [e["name"] for e in self.message["fields"]]
+        names = [e.name for e in self.fields]
         if len(names) != len(set(names)):
             dups = set([ n for n in names if names.count(n) > 1 ])
-            raise ValueError("found %s duplicated in %s" % (''.join(dups), self.message["name"]))
+            raise ValueError("found %s duplicated in %s" % (''.join(dups), self.name))
+
+class EnumEntry(object):
+    """Enum entry"""
+    def __init__(self, name, value, desc):
+        self.name = name
+        self.value = value
+        self.desc = desc
 
 class EnumElt(object):
     """Enumeration object created from json file"""
     def __init__(self, enum):
         self.enum = enum
+        self.name = enum["name"]
+        self.desc = enum["desc"]
+        entries = enum["entries"]
+        self.entries = [EnumEntry(e["entry"], e["value"], e["desc"]) for e in entries]
         self.check_enum()
 
     def get_enum_c_def(self, indent=4, level=0):
         """Return string with C enum declaration properly indented"""
         indent_prefix = level*indent*" "
-        out = "/* %s */\n" % (self.enum["desc"])
-        out += "typedef enum %s_e {\n" % (self.enum["name"])
+        out = "/* %s */\n" % (self.desc)
+        out += "typedef enum %s_e {\n" % (self.name)
         max_enum_val = 0
-        for e in self.enum["entries"]:
-            out += "%s%s = %d, /* %s */\n" % (indent*" ", e["entry"], e["value"], e["desc"])
-            max_enum_val = max(max_enum_val, e["value"])
-        out += "%s%s_END = %d\n" % (indent*" ", self.enum["name"], max_enum_val+1)
-        out += "} %s_t;" % (self.enum["name"])
+        for e in self.entries:
+            out += "%s%s = %d, /* %s */\n" % (indent*" ", e.name, e.value, e.desc)
+            max_enum_val = max(max_enum_val, e.value)
+        out += "%s%s_END = %d\n" % (indent*" ", self.name, max_enum_val+1)
+        out += "} %s_t;" % (self.name)
         out = re.sub("(^|\n)", r"\1" + indent_prefix, out)
         return out
 
     def get_enum_py_def(self, indent=4, level=0):
         """Return string with python enum declaration properly indented"""
         indent_prefix = level*indent*" "
-        out = "# %s\n" % (self.enum["desc"])
-        out += "class %s(Enum):\n" % (self.enum["name"])
+        out = "# %s\n" % (self.desc)
+        out += "class %s(Enum):\n" % (self.name)
         max_enum_val = 0
-        for e in self.enum["entries"]:
-            out += "%s%s = %d # %s\n" % (indent*" ", e["entry"], e["value"], e["desc"])
-            max_enum_val = max(max_enum_val, e["value"])
+        for e in self.entries:
+            out += "%s%s = %d # %s\n" % (indent*" ", e.name, e.value, e.desc)
+            max_enum_val = max(max_enum_val, e.value)
         out = re.sub("(^|\n)", r"\1" + indent_prefix, out)
         return out
 
     def check_enum(self):
         """Verify enum has only one instance of each name and value"""
         # Check names duplicates
-        names = [e["entry"] for e in self.enum["entries"]]
+        names = [e.name for e in self.entries]
         if len(names) != len(set(names)):
             dups = set([ n for n in names if names.count(n) > 1 ])
-            raise ValueError("found %s duplicated in %s" % (''.join(dups), self.enum["name"]))
+            raise ValueError("found %s duplicated in %s" % (''.join(dups), self.name))
         # Check values duplicates
-        vals = [e["value"] for e in self.enum["entries"]]
+        vals = [e.value for e in self.entries]
         if len(vals) != len(set(vals)):
             dups = set([ str(n) for n in vals if vals.count(n) > 1 ])
-            raise ValueError("found value %s used for more than one name in %s" % (' '.join(dups), self.enum["name"]))
+            raise ValueError("found value %s used for more than one name in %s" % (' '.join(dups), self.name))
 
 
 
