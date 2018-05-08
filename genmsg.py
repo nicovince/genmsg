@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import re
 import json
+import argparse
 
 def ctype_to_pack_format(t):
     """Return struct pack/unpack format from c type"""
@@ -49,7 +50,7 @@ class MessageElt(object):
         return out
 
     def get_class_py_def(self, indent=4, level=0):
-        """Return string with python class declaration"""
+        """Return string with python class declaration and __init__ method"""
         # Field names of Message
         field_names = [f.name for f in self.fields]
         current_level = 0
@@ -151,22 +152,45 @@ class EnumElt(object):
             dups = set([ str(n) for n in vals if vals.count(n) > 1 ])
             raise ValueError("found value %s used for more than one name in %s" % (' '.join(dups), self.name))
 
+class DefsGen(object):
+    def __init__(self, defs, indent, out_dir):
+        self.defs = defs
+        self.indent = indent
+        self.out_dir = out_dir
+        self.messages = list()
+        self.enums = list()
+
+    def process_messages_defs(self):
+        for m in self.defs["messages"]:
+            msg_elt = MessageElt(m)
+            print(msg_elt.get_struct_c_def(4))
+            print()
+            print(msg_elt.get_class_py_def())
+            print()
+            print(msg_elt.get_pack_py_def(4,1))
+
+    def process_enums_defs(self):
+        for e in self.defs["enums"]:
+            enum_elt = EnumElt(e)
+            print(enum_elt.get_enum_c_def(3,1))
+            print(enum_elt.get_enum_py_def(3,1))
 
 
 def main():
-    msg_file = open("messages.json")
+    parser = argparse.ArgumentParser(description="Process json message and enum definition to generate C structure or python serializing/deserializing",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("json_file", type=str,
+                        help="Json file containing messages definitions")
+    parser.add_argument("--indent", type=int, default=4,
+                        help="number of spaces per indentation")
+    args = parser.parse_args()
+
+    msg_file = open(args.json_file)
     messages = json.load(msg_file)
-    for m in messages["messages"]:
-        msg_elt = MessageElt(m)
-        print(msg_elt.get_struct_c_def(4))
-        print()
-        print(msg_elt.get_class_py_def())
-        print()
-        print(msg_elt.get_pack_py_def(4,1))
-    for e in messages["enums"]:
-        enum_elt = EnumElt(e)
-        print(enum_elt.get_enum_c_def(3,1))
-        print(enum_elt.get_enum_py_def(3,1))
+
+    defs_gen = DefsGen(messages, args.indent, ".")
+    defs_gen.process_messages_defs()
+    defs_gen.process_enums_defs()
 
 
 if __name__ == "__main__":
