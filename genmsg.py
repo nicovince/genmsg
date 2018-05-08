@@ -54,7 +54,7 @@ class EnumElt(object):
         out += "class %s(Enum):\n" % (self.enum["name"])
         max_enum_val = 0
         for e in self.enum["entries"]:
-            out += "%s%s = %d, # %s\n" % (indent*" ", e["entry"], e["value"], e["desc"])
+            out += "%s%s = %d # %s\n" % (indent*" ", e["entry"], e["value"], e["desc"])
             max_enum_val = max(max_enum_val, e["value"])
         out = re.sub("(^|\n)", r"\1" + indent_prefix, out)
         return out
