@@ -9,6 +9,10 @@ def ctype_to_pack_format(t):
         return "B"
     elif t == "int8_t":
         return "b"
+    elif t == "uint16_t":
+        return "H"
+    elif t == "int16_t":
+        return "h"
     elif t == "uint32_t":
         return "I"
     elif t == "int32_t":
