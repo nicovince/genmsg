@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from enum import Enum
+import argparse
 import array
+import struct
 
 
 class SlipState(Enum):
@@ -69,13 +71,75 @@ class Slip(object):
         ret += bytes([cls.SLIP_END])
         return ret
 
-if __name__ == "__main__":
+class SlipPayload(object):
+    """Payload of a slip message"""
+    def __init__(self, pid, seq, data):
+        self.pid = pid
+        self.seq = seq
+        if type(data) != bytes:
+            raise TypeError("Expect type bytes for data argument")
+        self.data = data
+        self.pack()
+
+    def __repr__(self):
+        return "SlipPayload(pid=%r, seq=%r, data=%r)" % (self.pid, self.seq, self.data)
+
+    def __str__(self):
+        s = ""
+        s += "pid: %d\n" % (self.pid)
+        s += "seq: %d\n" % (self.seq)
+        s += "len: %d\n" % (len(self.data))
+        if len(self.data) > 0:
+            s += "data: %s\n" % (self.data.hex())
+        # Update crc and packed data
+        self.pack()
+        s += "crc: %04X\n" % self.crc
+        s += "packed_payload: %s\n" % self.packed_payload.hex()
+        return s
+
+    def pack(self):
+        """Pack fields into packed data to serialize"""
+        # header
+        self.packed_payload = struct.pack("<BBB", self.pid, self.seq, len(self.data))
+        # data
+        self.packed_payload += self.data
+        # Comput CRC
+        self.crc = self.crc16_ccitt(0xFFFF, self.packed_payload)
+        # Add crc to packed payload
+        self.packed_payload += struct.pack("<H", self.crc)
+        return self.packed_payload
+
+    @staticmethod
+    def crc16_ccitt(crc, data):
+        msb = crc >> 8
+        lsb = crc & 255
+        for c in data:
+            x = c ^ msb
+            x ^= (x >> 4)
+            msb = (lsb ^ (x >> 3) ^ (x << 4)) & 255
+            lsb = (x ^ (x << 5)) & 255
+        return (msb << 8) + lsb
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Send Slip message",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("slip_interface", type=str, help="Slip interface")
+    parser.add_argument("--pid", type=int, choices=range(0,128), metavar="[0-127]",
+                        default=0, help="Primitive ID field")
+    parser.add_argument("--seq", type=int, choices=range(0,256), metavar="[0-255]",
+                        default=0, help="Sequence number field")
+    parser.add_argument("--data", type=int, choices=range(0,256), metavar="[0-255]",
+                        nargs="*", help="data")
+    args = parser.parse_args()
+
+    payload = SlipPayload(args.pid, args.seq, bytes(args.data))
     slip = Slip()
-    tx = [0x1, 0x2, 0x3, 0xC0, 0xDB]
-    buf = bytes(tx)
-    tx_encoded = slip.encode(buf)
-    print(tx_encoded)
-    for b in tx_encoded:
-        msg = slip.decode(b)
-        if msg != None:
-            print(msg)
+    tx_buf = slip.encode(payload.pack())
+    print(tx_buf.hex())
+    fd = open(args.slip_interface, "wb")
+    fd.write(tx_buf)
+
+
+if __name__ == "__main__":
+    main()
