@@ -109,6 +109,32 @@ class SlipPayload(object):
         self.packed_payload += struct.pack("<H", self.crc)
         return self.packed_payload
 
+    @classmethod
+    def get_msg(cls, data):
+        header_fmt = "<BBB"
+        header_size = struct.calcsize(header_fmt)
+        crc_fmt = "<H"
+        crc_size = struct.calcsize(crc_fmt)
+
+        # Unpack header
+        (pid, seq, length) = struct.unpack(header_fmt, data[0:header_size])
+        # Check length
+        expected_length = len(data) - header_size - crc_size
+        if length != expected_length:
+            print("Mismatch in length, got %d, expected %d" % (length, expected_length))
+            return None
+
+        # Unpack CRC, compute CRC on received data and compare
+        (crc,) = struct.unpack(crc_fmt, data[header_size + length:])
+        computed_crc = cls.crc16_ccitt(0xFFFF, data[:header_size + length])
+        if crc != computed_crc:
+            print("Mismatch in CRC, got %04X, expected %04X" % (crc, computed_crc))
+            return None
+
+        # everything good, build the message
+        msg = cls(pid, seq, data[header_size:-crc_size])
+        return msg
+
     @staticmethod
     def crc16_ccitt(crc, data):
         msb = crc >> 8
@@ -134,11 +160,21 @@ def main():
     args = parser.parse_args()
 
     payload = SlipPayload(args.pid, args.seq, bytes(args.data))
+    print(payload)
     slip = Slip()
     tx_buf = slip.encode(payload.pack())
-    print(tx_buf.hex())
-    fd = open(args.slip_interface, "wb")
-    fd.write(tx_buf)
+    print("sending %s" % tx_buf.hex())
+    #fd = open(args.slip_interface, "wb")
+    #fd.write(tx_buf)
+    for b in tx_buf:
+        rx_buf = slip.decode(b)
+        if rx_buf != None:
+            msg = SlipPayload.get_msg(rx_buf)
+            print(msg)
+
+
+
+
 
 
 if __name__ == "__main__":
