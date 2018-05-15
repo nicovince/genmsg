@@ -3,6 +3,8 @@ from enum import Enum
 import argparse
 import array
 import struct
+import threading
+import serial
 
 
 class SlipState(Enum):
@@ -21,6 +23,7 @@ class Slip(object):
 
     def decode(self, b):
         """Decode slip byte and update internal state"""
+        b = ord(b)
         if self.state == SlipState.WAIT_END:
             # Discard everything until we receive END byte
             if b == self.SLIP_END:
@@ -147,6 +150,21 @@ class SlipPayload(object):
         return (msb << 8) + lsb
 
 
+class SlipReader(threading.Thread):
+    def __init__(self, fd):
+        threading.Thread.__init__(self)
+        self.fd = fd
+        self.slip = Slip()
+
+    def run(self):
+        while True:
+            b = self.fd.read(1)
+            rx_buf = self.slip.decode(b)
+            if rx_buf != None:
+                msg = SlipPayload.get_msg(rx_buf)
+                print(msg)
+                return
+
 def main():
     parser = argparse.ArgumentParser(description="Send Slip message",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -161,20 +179,18 @@ def main():
 
     payload = SlipPayload(args.pid, args.seq, bytes(args.data))
     print(payload)
-    slip = Slip()
-    tx_buf = slip.encode(payload.pack())
-    print("sending %s" % tx_buf.hex())
-    #fd = open(args.slip_interface, "wb")
-    #fd.write(tx_buf)
-    for b in tx_buf:
-        rx_buf = slip.decode(b)
-        if rx_buf != None:
-            msg = SlipPayload.get_msg(rx_buf)
-            print(msg)
+    tx_buf = Slip.encode(payload.pack())
+    fd = open(args.slip_interface, "rb")
+    fd = serial.Serial(port=args.slip_interface, baudrate=9600)
 
+    # Start reader thread
+    slip_reader = SlipReader(fd)
+    slip_reader.start()
 
-
-
+    # Send data
+    fd.write(tx_buf)
+    # Wait for reader thread to finish
+    slip_reader.join(5)
 
 
 if __name__ == "__main__":
