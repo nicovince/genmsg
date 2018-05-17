@@ -79,7 +79,7 @@ class SlipPayload(object):
     def __init__(self, pid, seq, data):
         self.pid = pid
         self.seq = seq
-        if type(data) != bytes:
+        if data is not None and type(data) != bytes:
             raise TypeError("Expect type bytes for data argument")
         self.data = data
         self.pack()
@@ -89,10 +89,10 @@ class SlipPayload(object):
 
     def __str__(self):
         s = ""
-        s += "pid: %d\n" % (self.pid)
+        s += "pid: %02X\n" % (self.pid)
         s += "seq: %d\n" % (self.seq)
         s += "len: %d\n" % (len(self.data))
-        if len(self.data) > 0:
+        if self.data is not None and len(self.data) > 0:
             s += "data: %s\n" % (self.data.hex())
         # Update crc and packed data
         self.pack()
@@ -103,9 +103,13 @@ class SlipPayload(object):
     def pack(self):
         """Pack fields into packed data to serialize"""
         # header
-        self.packed_payload = struct.pack("<BBB", self.pid, self.seq, len(self.data))
+        data_len = 0
+        if self.data is not None:
+            data_len = len(self.data)
+        self.packed_payload = struct.pack("<BBB", self.pid, self.seq, data_len)
         # data
-        self.packed_payload += self.data
+        if data_len > 0:
+            self.packed_payload += self.data
         # Comput CRC
         self.crc = self.crc16_ccitt(0xFFFF, self.packed_payload)
         # Add crc to packed payload
@@ -174,7 +178,7 @@ def main():
     parser.add_argument("--seq", type=int, choices=range(0,256), metavar="[0-255]",
                         default=0, help="Sequence number field")
     parser.add_argument("--data", type=int, choices=range(0,256), metavar="[0-255]",
-                        nargs="*", help="data")
+                        nargs="*", help="data", default=bytes([]))
     args = parser.parse_args()
 
     payload = SlipPayload(args.pid, args.seq, bytes(args.data))
