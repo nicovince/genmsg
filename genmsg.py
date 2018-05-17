@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import re
-import json
+from ruamel import yaml
 import argparse
 
 def ctype_to_pack_format(t):
@@ -26,7 +26,7 @@ class StructField(object):
         self.desc = desc
 
 class MessageElt(object):
-    """Message object created from json file"""
+    """Message object created from dictionary definition"""
     def __init__(self, message):
         self.message = message
         self.id = message["id"]
@@ -108,7 +108,7 @@ class EnumEntry(object):
         self.desc = desc
 
 class EnumElt(object):
-    """Enumeration object created from json file"""
+    """Enumeration object created from dictionary definition"""
     def __init__(self, enum):
         self.enum = enum
         self.name = enum["name"]
@@ -181,16 +181,16 @@ class DefsGen(object):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Process json message and enum definition to generate C structure or python serializing/deserializing",
+    parser = argparse.ArgumentParser(description="Process yaml message and enum definition to generate C structure or python serializing/deserializing",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("json_file", type=str,
+    parser.add_argument("yaml_file", type=str,
                         help="Json file containing messages definitions")
     parser.add_argument("--indent", type=int, default=4,
                         help="number of spaces per indentation")
     args = parser.parse_args()
 
-    msg_file = open(args.json_file)
-    messages = json.load(msg_file)
+    msg_file = open(args.yaml_file)
+    messages = yaml.safe_load(msg_file)
 
     defs_gen = DefsGen(messages, args.indent, ".")
     defs_gen.process_messages_defs()
