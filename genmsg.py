@@ -85,6 +85,7 @@ class MessageElt(object):
 
         # methods
         out += self.get_repr_py_def(indent=indent, level=level+1)
+        out += self.get_str_py_def(indent=indent, level=level+1)
         out += self.get_pack_py_def(indent=indent, level=level+1)
 
         # indent to requested level
@@ -111,7 +112,7 @@ class MessageElt(object):
         return out
 
     def get_repr_py_def(self, indent=4, level=0):
-        """return __repr__ function for message"""
+        """return __repr__ method for message"""
         # Field names of message
         field_names = [f.name for f in self.fields]
         out  = "def __repr__(self):\n"
@@ -120,6 +121,20 @@ class MessageElt(object):
         out += ")\" %% (self.%s" % (', self.'.join(field_names))
         out += ")"
         out += "\n\n"
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_str_py_def(self, indent=4, level=0):
+        """return __str__ method for message"""
+        # Field names of message
+        field_names = [f.name for f in self.fields]
+        out  = "def __str__(self):\n"
+        out += "%sout  = \"\"\n" % (indent*' ')
+        for f in field_names:
+            out += "%sout += \"%s: %%s\\n\" %% (str(self.%s))\n" % (indent*' ', f, f)
+        out += "%sreturn out\n\n" % (indent*' ')
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
