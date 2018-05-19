@@ -18,6 +18,17 @@ def ctype_to_pack_format(t):
     elif t == "int32_t":
         return "i"
 
+def shift_indent_level(s, indent, level):
+    indent_prefix = level*indent*" "
+    # indent to requested level
+    s = re.sub("(^|\n)", r"\1" + indent_prefix, s)
+    # remove trailing ws
+    s = re.sub("(\n\s+\n|\n\s+$)", "\n\n", s)
+    return s
+
+def snake_to_camel(word):
+    return ''.join(x.capitalize() or '_' for x in word.split('_'))
+
 class StructField(object):
     """Field of a structure/message"""
     def __init__(self, name, field_type, desc):
@@ -48,20 +59,21 @@ class MessageElt(object):
         for f in self.fields:
             out += "%s%s %s; /* %s */\n" % (indent*" ", f.field_type, f.name, f.desc)
 
-        out += "} %s_t;" % (self.name)
+        out += "} %s_t;\n\n" % (self.name)
 
-        out = re.sub("(^|\n)", r"\1" + indent_prefix, out)
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
         return out
 
     def get_class_py_def(self, indent=4, level=0):
-        """Return string with python class declaration and __init__ method"""
+        """Return string with python class declaration"""
         # Field names of Message
         field_names = [f.name for f in self.fields]
         current_level = 0
 
         # Class definition
         out = "# %s\n" % self.desc
-        out += "class %s(object):\n" % self.name
+        out += "class %s(object):\n" % snake_to_camel(self.name)
         current_level = current_level + 1
 
         # Constructor definition
@@ -71,8 +83,13 @@ class MessageElt(object):
         # assign fields
         for f in field_names:
             out += "%sself.%s = %s\n" % (current_level*indent*" ", f, f)
+        out += "\n"
 
-        out = re.sub("(^|\n)", r"\1" + level*indent*" ", out)
+        # methods
+        out += self.get_pack_py_def(indent=indent, level=level+1)
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
         return out
 
     def get_pack_py_def(self, indent=4, level=0):
@@ -86,10 +103,11 @@ class MessageElt(object):
 
         # pack method definition
         out = "def pack(self):\n"
-        out += "%sreturn struct.pack(\"<%s\", self.%s)" % (level*indent*" ",
-                                                          struct_format,
-                                                          ', self.'.join(field_names))
-        out = re.sub("(^|\n)", r"\1" + level*indent*" ", out)
+        out += "%sreturn struct.pack(\"<%s\", self.%s)\n\n" % (indent*" ",
+                                                               struct_format,
+                                                               ', self.'.join(field_names))
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
         return out
 
     def check_message(self):
@@ -128,7 +146,9 @@ class EnumElt(object):
             max_enum_val = max(max_enum_val, e.value)
         out += "%s%s_END = %d\n" % (indent*" ", self.name, max_enum_val+1)
         out += "} %s_t;" % (self.name)
-        out = re.sub("(^|\n)", r"\1" + indent_prefix, out)
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
         return out
 
     def get_enum_py_def(self, indent=4, level=0):
@@ -140,7 +160,9 @@ class EnumElt(object):
         for e in self.entries:
             out += "%s%s = %d # %s\n" % (indent*" ", e.name, e.value, e.desc)
             max_enum_val = max(max_enum_val, e.value)
-        out = re.sub("(^|\n)", r"\1" + indent_prefix, out)
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
         return out
 
     def check_enum(self):
@@ -157,27 +179,79 @@ class EnumElt(object):
             raise ValueError("found value %s used for more than one name in %s" % (' '.join(dups), self.name))
 
 class DefsGen(object):
-    def __init__(self, defs, indent, out_dir):
+    def __init__(self, defs, indent, out_dir, h_gen, py_gen):
         self.defs = defs
         self.indent = indent
         self.out_dir = out_dir
+        self.h_gen = h_gen
+        self.py_gen = py_gen
+        self.filename_prefix = "messages"
+
         self.messages = list()
         self.enums = list()
 
+        self.process_messages_defs()
+        self.process_enums_defs()
+
     def process_messages_defs(self):
+        """Read message definitions and build objects accordingly"""
         for m in self.defs["messages"]:
             msg_elt = MessageElt(m)
-            print(msg_elt.get_struct_c_def(4))
-            print()
-            print(msg_elt.get_class_py_def())
-            print()
-            print(msg_elt.get_pack_py_def(4,1))
+            self.messages.append(msg_elt)
 
     def process_enums_defs(self):
+        """Read enums definitions and build objects accordingly"""
         for e in self.defs["enums"]:
             enum_elt = EnumElt(e)
-            print(enum_elt.get_enum_c_def(3,1))
-            print(enum_elt.get_enum_py_def(3,1))
+            self.enums.append(enum_elt)
+
+    def get_h_header(self):
+        define = "__" + self.filename_prefix.upper() + "_H__"
+        s  = "#ifndef %s\n" % define
+        s += "#define %s\n\n" % define
+        return s
+
+    def get_h_footer(self):
+        define = "__" + self.filename_prefix.upper() + "_H__"
+        s = "#endif %s\n" % define
+        return s
+
+    def get_py_header(self):
+        s  = "#/usr/bin/env python3\n"
+        s += "from enum import Enum\n"
+        s += "import struct\n\n"
+        return s
+
+    def process_defs(self):
+        if self.h_gen:
+            h_file = self.filename_prefix + ".h"
+            with open(h_file, 'w') as h_fd:
+                h_fd.write(self.get_h_header())
+
+                # Write Messages C definitions
+                for m in self.messages:
+                    h_fd.write(m.get_struct_c_def())
+
+                # Write Enums C definitions
+                for e in self.enums:
+                    h_fd.write(e.get_enum_c_def())
+                h_fd.write(self.get_h_footer())
+
+        if self.py_gen:
+            py_file = self.filename_prefix + ".py"
+            with open(py_file, 'w') as py_fd:
+                py_fd.write(self.get_py_header())
+
+                # Write Messages python definitions
+                for m in self.messages:
+                    py_fd.write(m.get_class_py_def())
+
+                # Write Enums python definitions
+                for e in self.enums:
+                    py_fd.write(e.get_enum_py_def())
+
+
+
 
 
 def main():
@@ -187,14 +261,17 @@ def main():
                         help="Json file containing messages definitions")
     parser.add_argument("--indent", type=int, default=4,
                         help="number of spaces per indentation")
+    parser.add_argument("--h-gen", action='store_true', default=False,
+                        help="Enable generation of c header files containing struct and enums")
+    parser.add_argument("--py-gen", action='store_true', default=False,
+                        help="Enable generation of python files containing struct and enums")
     args = parser.parse_args()
 
     msg_file = open(args.yaml_file)
     messages = yaml.safe_load(msg_file)
 
-    defs_gen = DefsGen(messages, args.indent, ".")
-    defs_gen.process_messages_defs()
-    defs_gen.process_enums_defs()
+    defs_gen = DefsGen(messages, args.indent, ".", args.h_gen, args.py_gen)
+    defs_gen.process_defs()
 
 
 if __name__ == "__main__":
