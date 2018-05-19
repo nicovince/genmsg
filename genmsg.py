@@ -2,6 +2,7 @@
 import re
 from ruamel import yaml
 import argparse
+import struct
 
 def ctype_to_pack_format(t):
     """Return struct pack/unpack format from c type"""
@@ -83,6 +84,7 @@ class MessageElt(object):
         out += self.get_init_py_def(indent=indent, level=level+1)
         out += self.get_repr_py_def(indent=indent, level=level+1)
         out += self.get_str_py_def(indent=indent, level=level+1)
+        out += self.get_len_py_def(indent=indent, level=level+1)
         out += self.get_pack_py_def(indent=indent, level=level+1)
         out += self.get_unpack_py_def(indent=indent, level=level+1)
 
@@ -149,6 +151,16 @@ class MessageElt(object):
         for f in field_names:
             out += "%sout += \"%s: %%s\\n\" %% (str(self.%s))\n" % (indent*' ', f, f)
         out += "%sreturn out\n\n" % (indent*' ')
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_len_py_def(self, indent=4, level=0):
+        """Return method capable of counting message object length"""
+        out  = "def __len__(self):\n"
+        out += "%sreturn %d\n\n" % (indent*' ',
+                                    struct.calcsize(self.get_struct_py_fmt()))
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -305,12 +317,11 @@ class DefsGen(object):
         out += "%selse:\n" % (indent_prefix)
         cl += 1
         indent_prefix = cl*indent*' '
-        out += "%sreturn None\n\n" % (indent_prefix)
+        out += "%sreturn data\n\n" % (indent_prefix)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
-
 
     def process_defs(self):
         if self.h_gen:
