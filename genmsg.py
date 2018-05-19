@@ -4,6 +4,7 @@ from ruamel import yaml
 import argparse
 import struct
 
+
 def ctype_to_pack_format(t):
     """Return struct pack/unpack format from c type"""
     if t == "uint8_t":
@@ -19,14 +20,17 @@ def ctype_to_pack_format(t):
     elif t == "int32_t":
         return "i"
 
+
 def shift_indent_level(s, indent, level):
     indent_prefix = level*indent*" "
     # indent to requested level
     s = re.sub("(^|\n)(.)", r"\1" + indent_prefix + r"\2", s)
     return s
 
+
 def snake_to_camel(word):
     return ''.join(x.capitalize() or '_' for x in word.split('_'))
+
 
 class StructField(object):
     """Field of a structure/message"""
@@ -34,6 +38,7 @@ class StructField(object):
         self.name = name
         self.field_type = field_type
         self.desc = desc
+
 
 class MessageElt(object):
     """Message object created from dictionary definition"""
@@ -56,7 +61,8 @@ class MessageElt(object):
         out += "typedef struct {\n"
 
         for f in self.fields:
-            out += "%s%s %s; /* %s */\n" % (indent*" ", f.field_type, f.name, f.desc)
+            out += "%s%s %s; /* %s */\n" % (indent*" ",
+                                            f.field_type, f.name, f.desc)
 
         out += "} %s_t;\n\n" % (self.name)
 
@@ -88,6 +94,7 @@ class MessageElt(object):
         out += self.get_pack_py_def(indent=indent, level=level+1)
         out += self.get_unpack_py_def(indent=indent, level=level+1)
 
+        out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
@@ -97,7 +104,7 @@ class MessageElt(object):
         # Field names of Message
         field_names = [f.name for f in self.fields]
 
-        out  = "def __init__(self, %s):\n" % (', '.join(field_names))
+        out = "def __init__(self, %s):\n" % (', '.join(field_names))
         # assign fields
         for f in field_names:
             out += "%sself.%s = %s\n" % (indent*' ', f, f)
@@ -106,7 +113,6 @@ class MessageElt(object):
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
-
 
     def get_pack_py_def(self, indent=4, level=0):
         """Return packing function"""
@@ -120,8 +126,8 @@ class MessageElt(object):
         # pack method definition
         out = "def pack(self):\n"
         out += "%sreturn struct.pack(\"%s\", self.%s)\n\n" % (indent*" ",
-                                                               self.get_struct_py_fmt(),
-                                                               ', self.'.join(field_names))
+                                                              self.get_struct_py_fmt(),
+                                                              ', self.'.join(field_names))
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -131,7 +137,7 @@ class MessageElt(object):
         """return __repr__ method for message"""
         # Field names of message
         field_names = [f.name for f in self.fields]
-        out  = "def __repr__(self):\n"
+        out = "def __repr__(self):\n"
         out += "%sreturn \"%s(" % (indent*" ", snake_to_camel(self.name))
         out += "%s=%%r" % ('=%r, '.join(field_names))
         out += ")\" %% (self.%s" % (', self.'.join(field_names))
@@ -146,10 +152,11 @@ class MessageElt(object):
         """return __str__ method for message"""
         # Field names of message
         field_names = [f.name for f in self.fields]
-        out  = "def __str__(self):\n"
-        out += "%sout  = \"\"\n" % (indent*' ')
+        out = "def __str__(self):\n"
+        out += "%sout = \"\"\n" % (indent*' ')
         for f in field_names:
-            out += "%sout += \"%s: %%s\\n\" %% (str(self.%s))\n" % (indent*' ', f, f)
+            out += "%sout += \"%s: %%s\\n\" %% (str(self.%s))\n" % (indent*' ',
+                                                                    f, f)
         out += "%sreturn out\n\n" % (indent*' ')
 
         # indent to requested level
@@ -158,7 +165,7 @@ class MessageElt(object):
 
     def get_len_py_def(self, indent=4, level=0):
         """Return method capable of counting message object length"""
-        out  = "def __len__(self):\n"
+        out = "def __len__(self):\n"
         out += "%sreturn %d\n\n" % (indent*' ',
                                     struct.calcsize(self.get_struct_py_fmt()))
 
@@ -171,7 +178,7 @@ class MessageElt(object):
         # Field names of Message
         field_names = [f.name for f in self.fields]
 
-        out  = "@classmethod\n"
+        out = "@classmethod\n"
         out += "def unpack(cls, data):\n"
         out += "%smsg_fmt = \"%s\"\n" % (indent*' ', self.get_struct_py_fmt())
         out += "%s(%s) = " % (indent*' ', ', '.join(field_names))
@@ -185,14 +192,15 @@ class MessageElt(object):
         out = shift_indent_level(out, indent, level)
         return out
 
-
     def check_message(self):
         """Verify message has unique field names"""
         # Check names duplicates
         names = [e.name for e in self.fields]
         if len(names) != len(set(names)):
-            dups = set([ n for n in names if names.count(n) > 1 ])
-            raise ValueError("found %s duplicated in %s" % (''.join(dups), self.name))
+            dups = set([n for n in names if names.count(n) > 1])
+            raise ValueError("found %s duplicated in %s"
+                             % (''.join(dups), self.name))
+
 
 class EnumEntry(object):
     """Enum entry"""
@@ -200,6 +208,7 @@ class EnumEntry(object):
         self.name = name
         self.value = value
         self.desc = desc
+
 
 class EnumElt(object):
     """Enumeration object created from dictionary definition"""
@@ -218,7 +227,8 @@ class EnumElt(object):
         out += "typedef enum %s_e {\n" % (self.name)
         max_enum_val = 0
         for e in self.entries:
-            out += "%s%s = %d, /* %s */\n" % (indent*" ", e.name, e.value, e.desc)
+            out += "%s%s = %d, /* %s */\n" % (indent*" ",
+                                              e.name, e.value, e.desc)
             max_enum_val = max(max_enum_val, e.value)
         out += "%s%s_END = %d\n" % (indent*" ", self.name, max_enum_val+1)
         out += "} %s_t;\n\n" % (self.name)
@@ -234,9 +244,10 @@ class EnumElt(object):
         out += "class %s(Enum):\n" % (self.name)
         max_enum_val = 0
         for e in self.entries:
-            out += "%s%s = %d # %s\n" % (indent*" ", e.name, e.value, e.desc)
+            out += "%s%s = %d  # %s\n" % (indent*" ", e.name, e.value, e.desc)
             max_enum_val = max(max_enum_val, e.value)
-        out += "%s%s_MAX = %d\n\n" % (indent*" ", self.name.upper(), max_enum_val+1)
+        out += "%s%s_MAX = %d\n\n" % (indent*" ", self.name.upper(),
+                                      max_enum_val+1)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -247,13 +258,16 @@ class EnumElt(object):
         # Check names duplicates
         names = [e.name for e in self.entries]
         if len(names) != len(set(names)):
-            dups = set([ n for n in names if names.count(n) > 1 ])
-            raise ValueError("found %s duplicated in %s" % (''.join(dups), self.name))
+            dups = set([n for n in names if names.count(n) > 1])
+            raise ValueError("found %s duplicated in %s"
+                             % (''.join(dups), self.name))
         # Check values duplicates
         vals = [e.value for e in self.entries]
         if len(vals) != len(set(vals)):
-            dups = set([ str(n) for n in vals if vals.count(n) > 1 ])
-            raise ValueError("found value %s used for more than one name in %s" % (' '.join(dups), self.name))
+            dups = set([str(n) for n in vals if vals.count(n) > 1])
+            raise ValueError("found value %s used for more than one name in %s"
+                             % (' '.join(dups), self.name))
+
 
 class DefsGen(object):
     def __init__(self, defs, indent, out_dir, h_gen, py_gen):
@@ -284,7 +298,7 @@ class DefsGen(object):
 
     def get_h_header(self):
         define = "__" + self.filename_prefix.upper() + "_H__"
-        s  = "#ifndef %s\n" % define
+        s = "#ifndef %s\n" % define
         s += "#define %s\n\n" % define
         return s
 
@@ -294,17 +308,18 @@ class DefsGen(object):
         return s
 
     def get_py_header(self):
-        s  = "#/usr/bin/env python3\n"
+        s = "#!/usr/bin/env python3\n"
         s += "from enum import Enum\n"
-        s += "import struct\n\n"
+        s += "import struct\n\n\n"
         return s
 
     def get_msg_creator_py_def(self, indent=4, level=0):
         """Return function capable of returning message from id and data"""
         cl = 0
-        out  = "msg_map = dict()\n"
+        out = "msg_map = dict()\n"
         for m in self.messages:
             out += "msg_map[%d] = %s\n" % (m.id, snake_to_camel(m.name))
+        out += "\n\n"
         out += "def msg_creator(msg_id, msg_len, data):\n"
         cl += 1
         indent_prefix = cl*indent*' '
@@ -352,6 +367,8 @@ class DefsGen(object):
                     py_fd.write(e.get_enum_py_def())
 
                 py_fd.write(self.get_msg_creator_py_def())
+
+                py_fd.write("# End of file\n")
 
 
 def main():

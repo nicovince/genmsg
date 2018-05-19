@@ -13,11 +13,13 @@ class SlipState(Enum):
     ESCAPING = "Escaping"
     STORE_INCOMING = "Store Incoming"
 
+
 class Slip(object):
     SLIP_END = 0xC0
     SLIP_ESC = 0xDB
     SLIP_ESC_END = 0xDC
     SLIP_ESC_ESC = 0xDD
+
     def __init__(self):
         self.state = SlipState.WAIT_END
         self.rx = bytes()
@@ -75,6 +77,7 @@ class Slip(object):
         ret += bytes([cls.SLIP_END])
         return ret
 
+
 class SlipPayload(object):
     """Payload of a slip message"""
     def __init__(self, pid, seq, data):
@@ -87,7 +90,8 @@ class SlipPayload(object):
         self.pack()
 
     def __repr__(self):
-        return "SlipPayload(pid=%r, seq=%r, data=%r)" % (self.pid, self.seq, self.data)
+        return "SlipPayload(pid=%r, seq=%r, data=%r)" % (self.pid, self.seq,
+                                                         self.data)
 
     def __str__(self):
         s = ""
@@ -136,14 +140,16 @@ class SlipPayload(object):
         # Check length
         expected_length = len(data) - header_size - crc_size
         if length != expected_length:
-            print("Mismatch in length, got %d, expected %d" % (length, expected_length))
+            print("Mismatch in length, got %d, expected %d"
+                  % (length, expected_length))
             return None
 
         # Unpack CRC, compute CRC on received data and compare
         (crc,) = struct.unpack(crc_fmt, data[header_size + length:])
         computed_crc = cls.crc16_ccitt(0xFFFF, data[:header_size + length])
         if crc != computed_crc:
-            print("Mismatch in CRC, got %04X, expected %04X" % (crc, computed_crc))
+            print("Mismatch in CRC, got %04X, expected %04X"
+                  % (crc, computed_crc))
             return None
 
         # everything good, build the message
@@ -172,21 +178,25 @@ class SlipReader(threading.Thread):
         while True:
             b = self.fd.read(1)
             rx_buf = self.slip.decode(b)
-            if rx_buf != None:
+            if rx_buf is not None:
                 msg = SlipPayload.get_msg(rx_buf)
                 print(msg)
                 return
+
 
 def main():
     parser = argparse.ArgumentParser(description="Send Slip message",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("slip_interface", type=str, help="Slip interface")
-    parser.add_argument("--pid", type=int, choices=range(0,128), metavar="[0-127]",
-                        default=0, help="Primitive ID field")
-    parser.add_argument("--seq", type=int, choices=range(0,256), metavar="[0-255]",
-                        default=0, help="Sequence number field")
-    parser.add_argument("--data", type=int, choices=range(0,256), metavar="[0-255]",
-                        nargs="*", help="data", default=bytes([]))
+    parser.add_argument("--pid", type=int, choices=range(0, 128),
+                        metavar="[0-127]", default=0,
+                        help="Primitive ID field")
+    parser.add_argument("--seq", type=int, choices=range(0, 256),
+                        metavar="[0-255]", default=0,
+                        help="Sequence number field")
+    parser.add_argument("--data", type=int, choices=range(0, 256),
+                        metavar="[0-255]", nargs="*", help="data",
+                        default=bytes([]))
     args = parser.parse_args()
 
     payload = SlipPayload(args.pid, args.seq, bytes(args.data))
