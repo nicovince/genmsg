@@ -5,6 +5,7 @@ import array
 import struct
 import threading
 import serial
+import messages
 
 
 class SlipState(Enum):
@@ -81,7 +82,8 @@ class SlipPayload(object):
         self.seq = seq
         if data is not None and type(data) != bytes:
             raise TypeError("Expect type bytes for data argument")
-        self.data = data
+
+        self.data = messages.msg_creator(self.pid, len(data), data)
         self.pack()
 
     def __repr__(self):
@@ -93,7 +95,10 @@ class SlipPayload(object):
         s += "seq: %d\n" % (self.seq)
         s += "len: %d\n" % (len(self.data))
         if self.data is not None and len(self.data) > 0:
-            s += "data: %s\n" % (self.data.hex())
+            if type(self.data) == bytes:
+                s += "data: %s\n" % (self.data.hex())
+            else:
+                s += "data: %s\n" % (str(self.data))
         # Update crc and packed data
         self.pack()
         s += "crc: %04X\n" % self.crc
@@ -109,7 +114,10 @@ class SlipPayload(object):
         self.packed_payload = struct.pack("<BBB", self.pid, self.seq, data_len)
         # data
         if data_len > 0:
-            self.packed_payload += self.data
+            if type(self.data) == bytes:
+                self.packed_payload += self.data
+            else:
+                self.packed_payload += self.data.pack()
         # Comput CRC
         self.crc = self.crc16_ccitt(0xFFFF, self.packed_payload)
         # Add crc to packed payload
