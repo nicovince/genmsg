@@ -71,25 +71,16 @@ class MessageElt(object):
 
     def get_class_py_def(self, indent=4, level=0):
         """Return string with python class declaration"""
-        # Field names of Message
-        field_names = [f.name for f in self.fields]
         current_level = 0
 
         # Class definition
         out = "# %s\n" % self.desc
         out += "class %s(object):\n" % snake_to_camel(self.name)
         current_level = current_level + 1
-
-        # Constructor definition
-        out += "%sdef __init__(self, %s):\n" % (current_level*indent*" ",
-                                               ', '.join(field_names))
-        current_level = current_level + 1
-        # assign fields
-        for f in field_names:
-            out += "%sself.%s = %s\n" % (current_level*indent*" ", f, f)
-        out += "\n"
+        out += "%smsg_id = %d\n\n" % (current_level*indent*" ", self.id)
 
         # methods
+        out += self.get_init_py_def(indent=indent, level=level+1)
         out += self.get_repr_py_def(indent=indent, level=level+1)
         out += self.get_str_py_def(indent=indent, level=level+1)
         out += self.get_pack_py_def(indent=indent, level=level+1)
@@ -98,6 +89,22 @@ class MessageElt(object):
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
+
+    def get_init_py_def(self, indent=4, level=0):
+        """Return constructor method"""
+        # Field names of Message
+        field_names = [f.name for f in self.fields]
+
+        out  = "def __init__(self, %s):\n" % (', '.join(field_names))
+        # assign fields
+        for f in field_names:
+            out += "%sself.%s = %s\n" % (indent*' ', f, f)
+        out += "\n"
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
 
     def get_pack_py_def(self, indent=4, level=0):
         """Return packing function"""
@@ -217,6 +224,7 @@ class EnumElt(object):
         for e in self.entries:
             out += "%s%s = %d # %s\n" % (indent*" ", e.name, e.value, e.desc)
             max_enum_val = max(max_enum_val, e.value)
+        out += "%s%s_MAX = %d\n\n" % (indent*" ", self.name.upper(), max_enum_val+1)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -279,6 +287,31 @@ class DefsGen(object):
         s += "import struct\n\n"
         return s
 
+    def get_msg_creator_py_def(self, indent=4, level=0):
+        """Return function capable of returning message from id and data"""
+        cl = 0
+        out  = "msg_map = dict()\n"
+        for m in self.messages:
+            out += "msg_map[%d] = %s\n" % (m.id, snake_to_camel(m.name))
+        out += "def msg_creator(msg_id, msg_len, data):\n"
+        cl += 1
+        indent_prefix = cl*indent*' '
+        out += "%sif msg_id in msg_map.keys():\n" % (indent_prefix)
+        cl += 1
+        indent_prefix = cl*indent*' '
+        out += "%sreturn msg_map[msg_id].unpack(data)\n" % (indent_prefix)
+        cl -= 1
+        indent_prefix = cl*indent*' '
+        out += "%selse:\n" % (indent_prefix)
+        cl += 1
+        indent_prefix = cl*indent*' '
+        out += "%sreturn None\n\n" % (indent_prefix)
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+
     def process_defs(self):
         if self.h_gen:
             h_file = self.filename_prefix + ".h"
@@ -304,11 +337,10 @@ class DefsGen(object):
                     py_fd.write(m.get_class_py_def())
 
                 # Write Enums python definitions
-                #for e in self.enums:
-                #    py_fd.write(e.get_enum_py_def())
+                for e in self.enums:
+                    py_fd.write(e.get_enum_py_def())
 
-
-
+                py_fd.write(self.get_msg_creator_py_def())
 
 
 def main():
