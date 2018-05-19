@@ -221,7 +221,7 @@ class EnumElt(object):
             out += "%s%s = %d, /* %s */\n" % (indent*" ", e.name, e.value, e.desc)
             max_enum_val = max(max_enum_val, e.value)
         out += "%s%s_END = %d\n" % (indent*" ", self.name, max_enum_val+1)
-        out += "} %s_t;" % (self.name)
+        out += "} %s_t;\n\n" % (self.name)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
