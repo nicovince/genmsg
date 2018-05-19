@@ -63,6 +63,12 @@ class MessageElt(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_struct_py_fmt(self):
+        """return struct format"""
+        # Field names of message
+        field_names = [f.name for f in self.fields]
+        return "<" + ''.join([ctype_to_pack_format(f.field_type) for f in self.fields])
+
     def get_class_py_def(self, indent=4, level=0):
         """Return string with python class declaration"""
         # Field names of Message
@@ -87,6 +93,7 @@ class MessageElt(object):
         out += self.get_repr_py_def(indent=indent, level=level+1)
         out += self.get_str_py_def(indent=indent, level=level+1)
         out += self.get_pack_py_def(indent=indent, level=level+1)
+        out += self.get_unpack_py_def(indent=indent, level=level+1)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -103,8 +110,8 @@ class MessageElt(object):
 
         # pack method definition
         out = "def pack(self):\n"
-        out += "%sreturn struct.pack(\"<%s\", self.%s)\n\n" % (indent*" ",
-                                                               struct_format,
+        out += "%sreturn struct.pack(\"%s\", self.%s)\n\n" % (indent*" ",
+                                                               self.get_struct_py_fmt(),
                                                                ', self.'.join(field_names))
 
         # indent to requested level
@@ -139,6 +146,26 @@ class MessageElt(object):
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
+
+    def get_unpack_py_def(self, indent=4, level=0):
+        """return unpack method which"""
+        # Field names of Message
+        field_names = [f.name for f in self.fields]
+
+        out  = "@classmethod\n"
+        out += "def unpack(cls, data):\n"
+        out += "%smsg_fmt = \"%s\"\n" % (indent*' ', self.get_struct_py_fmt())
+        out += "%s(%s) = " % (indent*' ', ', '.join(field_names))
+        out += "struct.unpack(msg_fmt, data)\n"
+        out += "%sreturn %s(" % (indent*' ', snake_to_camel(self.name))
+        for f in field_names:
+            out += "%s=%s, " % (f, f)
+        out += ")\n\n"
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
 
     def check_message(self):
         """Verify message has unique field names"""
