@@ -21,9 +21,7 @@ def ctype_to_pack_format(t):
 def shift_indent_level(s, indent, level):
     indent_prefix = level*indent*" "
     # indent to requested level
-    s = re.sub("(^|\n)", r"\1" + indent_prefix, s)
-    # remove trailing ws
-    s = re.sub("(\n\s+\n|\n\s+$)", "\n\n", s)
+    s = re.sub("(^|\n)(.)", r"\1" + indent_prefix + r"\2", s)
     return s
 
 def snake_to_camel(word):
@@ -86,6 +84,7 @@ class MessageElt(object):
         out += "\n"
 
         # methods
+        out += self.get_repr_py_def(indent=indent, level=level+1)
         out += self.get_pack_py_def(indent=indent, level=level+1)
 
         # indent to requested level
@@ -106,6 +105,22 @@ class MessageElt(object):
         out += "%sreturn struct.pack(\"<%s\", self.%s)\n\n" % (indent*" ",
                                                                struct_format,
                                                                ', self.'.join(field_names))
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_repr_py_def(self, indent=4, level=0):
+        """return __repr__ function for message"""
+        # Field names of message
+        field_names = [f.name for f in self.fields]
+        out  = "def __repr__(self):\n"
+        out += "%sreturn \"%s(" % (indent*" ", snake_to_camel(self.name))
+        out += "%s=%%r" % ('=%r, '.join(field_names))
+        out += ")\" %% (self.%s" % (', self.'.join(field_names))
+        out += ")"
+        out += "\n\n"
+
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
@@ -247,8 +262,8 @@ class DefsGen(object):
                     py_fd.write(m.get_class_py_def())
 
                 # Write Enums python definitions
-                for e in self.enums:
-                    py_fd.write(e.get_enum_py_def())
+                #for e in self.enums:
+                #    py_fd.write(e.get_enum_py_def())
 
 
 
