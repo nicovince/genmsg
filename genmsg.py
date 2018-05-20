@@ -68,8 +68,12 @@ class MessageElt(object):
         out += "typedef struct {\n"
 
         for f in self.fields:
-            out += "%s%s %s; /* %s */\n" % (indent*" ",
-                                            f.field_type, f.name, f.desc)
+            array_suffix = ""
+            if "[]" in f.field_type:
+                array_suffix = "[255]"
+            out += "%s%s %s%s; /* %s */\n" % (indent*" ",
+                                            f.field_type.replace("[]", "")
+                                            , f.name, array_suffix, f.desc)
 
         out += "} %s_t;\n\n" % (self.name)
 
@@ -124,9 +128,11 @@ class MessageElt(object):
 
     def get_struct_fmt_py_def(self, indent=4, level=0):
         """Return method that dynamically compute struct format"""
+        # Current level of indentation
         out = "@staticmethod\n"
         out += "def struct_fmt(data):\n"
-        out += "%sfmt = \"<\"\n" % (indent*' ')
+        cl = 1
+        out += "%sfmt = \"<\"\n" % (cl*indent*' ')
         for f in self.fields:
             if "[]" not in f.field_type:
                 field_fmt = ctype_to_pack_format(f.field_type)
@@ -134,7 +140,16 @@ class MessageElt(object):
             else:
                 array_type = f.field_type.replace("[]", "")
                 field_fmt = ctype_to_pack_format(array_type)
-                out += "%sfmt += \"%%d%s\" %% (len(data) - struct.calcsize(fmt))\n" % (indent*' ', field_fmt)
+                out += "%sif type(data) == bytes:\n" % (cl*indent*' ')
+                cl += 1
+                out += "%sn_elt = len(data) / struct.calcsize(\"%s\")\n" % (cl*indent*' ',
+                                                                            field_fmt)
+                cl -= 1
+                out += "%selse:\n" % (cl*indent*' ')
+                cl += 1
+                out += "%sn_elt = len(data)\n" % (cl*indent*' ')
+                cl -= 1
+                out += "%sfmt += \"%%d%s\" %% (n_elt - struct.calcsize(fmt))\n" % (cl*indent*' ', field_fmt)
         out += "%sreturn fmt\n\n" % (indent*' ')
 
         # indent to requested level
@@ -350,7 +365,7 @@ class DefsGen(object):
 
     def get_h_footer(self):
         define = "__" + self.filename_prefix.upper() + "_H__"
-        s = "#endif %s\n" % define
+        s = "#endif // %s\n" % define
         return s
 
     def get_py_header(self):
