@@ -72,8 +72,8 @@ class MessageElt(object):
             if "[]" in f.field_type:
                 array_suffix = "[255]"
             out += "%s%s %s%s; /* %s */\n" % (indent*" ",
-                                            f.field_type.replace("[]", "")
-                                            , f.name, array_suffix, f.desc)
+                                              f.field_type.replace("[]", ""),
+                                              f.name, array_suffix, f.desc)
 
         out += "} %s_t;\n\n" % (self.name)
 
@@ -247,7 +247,7 @@ class MessageElt(object):
         for f in field_names:
             out += "%s=%s, " % (f, f)
         out += ")"
-        out +="\n\n"
+        out += "\n\n"
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
