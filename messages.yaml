@@ -1,37 +1,71 @@
-{
-    "messages":
-    [
-        {
-            "id":0, "name": "version", "desc":"Send Version number",
-            "fields": [
-                {"name":"major", "type":"uint8_t", "desc":"major version number"},
-                {"name":"minor", "type":"uint8_t", "desc":"minor version number"}
-            ]
-        },
-        {
-            "id":129, "name": "timer_config", "desc":"Timer configuration",
-            "fields": [
-                {"name":"tim_freq", "type":"uint32_t", "desc":"frequency at which the timer overflows"},
-                {"name":"cnt_freq", "type":"uint32_t", "desc":"Timer counting frequency"},
-                {"name":"cnt", "type":"uint32_t", "desc":"overflow counter value"},
-                {"name":"mode", "type":"uint8_t", "desc":"mode value"},
-                {"name":"tccr0a", "type":"uint8_t", "desc":"Capture compare channel A value"},
-                {"name":"tccr0b", "type":"uint8_t", "desc":"Capture compare channel B value"},
-                {"name":"timsk0", "type":"uint8_t", "desc":"mask interrupt"},
-                {"name":"gtccr", "type":"uint8_t", "desc":"GTCCR value"},
-                {"name":"tcnt0", "type":"uint8_t", "desc":"current timer counter value"}
-            ]
-        }
-    ],
+messages:
+- name: version
+  id: 0
+  desc: Send Version number
+  fields:
+  - name: major
+    type: uint8_t
+    desc: major version number
+  - name: minor
+    type: uint8_t
+    desc: minor version number
 
-    "enums":
-    [
-        {
-            "name":"enum_name", "desc":"enum description",
-            "entries": [
-                {"entry":"SEL_A", "value":0, "desc":"sel A desc"},
-                {"entry":"SEL_B", "value":1, "desc":"sel B desc"}
-            ]
-        }
-    ]
-}
+- name: req_array
+  id: 3
+  desc: Request Array from target
+  fields:
+  - name: array_len
+    type: uint8_t
+    desc: requested array length
+
+- name: ack_array
+  id: 131
+  desc: reply to array request
+  fields:
+  - name: array
+    type: uint8_t[]
+    desc: array requested
+
+
+- name: timer_config
+  id: 129
+  desc: Timer configuration
+  fields:
+  - name: tim_freq
+    type: uint32_t
+    desc: frequency at which the timer overflows
+  - name: cnt_freq
+    type: uint32_t
+    desc: Timer counting frequency
+  - name: cnt
+    type: uint32_t
+    desc: overflow counter value
+  - name: mode
+    type: uint8_t
+    desc: mode value
+  - name: tccr0a
+    type: uint8_t
+    desc: Capture compare channel A value
+  - name: tccr0b
+    type: uint8_t
+    desc: Capture compare channel B value
+  - name: timsk0
+    type: uint8_t
+    desc: mask interrupt
+  - name: gtccr
+    type: uint8_t
+    desc: GTCCR value
+  - name: tcnt0
+    type: uint8_t
+    desc: current timer counter value
+
+enums:
+- name: enum_name
+  desc: enum description
+  entries:
+  - entry: SEL_A
+    value: 0
+    desc: sel A desc
+  - entry: SEL_B
+    value: 1
+    desc: sel B desc
