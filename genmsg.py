@@ -39,6 +39,13 @@ class StructField(object):
         self.field_type = field_type
         self.desc = desc
 
+    def get_pack_va(self):
+        if "[]" not in self.field_type:
+            prefix = ""
+        else:
+            prefix = "*"
+        return "%sself.%s" % (prefix, self.name)
+
 
 class MessageElt(object):
     """Message object created from dictionary definition"""
@@ -91,6 +98,7 @@ class MessageElt(object):
         out += self.get_repr_py_def(indent=indent, level=level+1)
         out += self.get_str_py_def(indent=indent, level=level+1)
         out += self.get_len_py_def(indent=indent, level=level+1)
+        out += self.get_struct_fmt_py_def(indent=indent, level=level+1)
         out += self.get_pack_py_def(indent=indent, level=level+1)
         out += self.get_unpack_py_def(indent=indent, level=level+1)
 
@@ -114,20 +122,44 @@ class MessageElt(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_struct_fmt_py_def(self, indent=4, level=0):
+        """Return method that dynamically compute struct format"""
+        out = "@staticmethod\n"
+        out += "def struct_fmt(data):\n"
+        out += "%sfmt = \"<\"\n" % (indent*' ')
+        for f in self.fields:
+            if "[]" not in f.field_type:
+                field_fmt = ctype_to_pack_format(f.field_type)
+                out += "%sfmt += \"%s\"\n" % (indent*' ', field_fmt)
+            else:
+                array_type = f.field_type.replace("[]", "")
+                field_fmt = ctype_to_pack_format(array_type)
+                out += "%sfmt += \"%%d%s\" %% (len(data) - struct.calcsize(fmt))\n" % (indent*' ', field_fmt)
+        out += "%sreturn fmt\n\n" % (indent*' ')
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def get_pack_py_def(self, indent=4, level=0):
         """Return packing function"""
         # Field names of message
         field_names = [f.name for f in self.fields]
-        # struct pack/unpack format
-        struct_format = ""
+        struct_pack_va = ""
+        array_name = "None"
         for f in self.fields:
-            struct_format += ctype_to_pack_format(f.field_type)
+            if "[]" not in f.field_type:
+                struct_pack_va += "self.%s," % (f.name)
+            else:
+                struct_pack_va += "*self.%s," % (f.name)
+                array_name = "self.%s" % (f.name)
 
         # pack method definition
         out = "def pack(self):\n"
-        out += "%sreturn struct.pack(\"%s\", self.%s)\n\n" % (indent*" ",
-                                                              self.get_struct_py_fmt(),
-                                                              ', self.'.join(field_names))
+        pack_va = ", ".join([f.get_pack_va() for f in self.fields])
+        out += "%sreturn struct.pack(self.struct_fmt(%s), %s)\n\n" % (indent*" ",
+                                                                      array_name,
+                                                                      pack_va)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -166,8 +198,14 @@ class MessageElt(object):
     def get_len_py_def(self, indent=4, level=0):
         """Return method capable of counting message object length"""
         out = "def __len__(self):\n"
-        out += "%sreturn %d\n\n" % (indent*' ',
-                                    struct.calcsize(self.get_struct_py_fmt()))
+        array_name = "None"
+        for f in self.fields:
+            if "[]" in f.field_type:
+                array_name = "self.%s" % f.name
+                break
+
+        out += "%sreturn struct.calcsize(self.struct_fmt(%s))\n\n" % (indent*' ',
+                                                                      array_name)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -180,13 +218,21 @@ class MessageElt(object):
 
         out = "@classmethod\n"
         out += "def unpack(cls, data):\n"
-        out += "%smsg_fmt = \"%s\"\n" % (indent*' ', self.get_struct_py_fmt())
+        out += "%smsg_fmt = cls.struct_fmt(data)\n" % (indent*' ')
         out += "%s(%s) = " % (indent*' ', ', '.join(field_names))
-        out += "struct.unpack(msg_fmt, data)\n"
+        out += "struct.unpack(msg_fmt, data)"
+
+        if len(field_names) == 1 and "[]" not in self.fields[0].field_type:
+            # message has only one element and it is not an array
+            # unpack returns a tuple so we need to get the first element in
+            # local var
+            out += "[0]"
+        out += "\n"
         out += "%sreturn %s(" % (indent*' ', snake_to_camel(self.name))
         for f in field_names:
             out += "%s=%s, " % (f, f)
-        out += ")\n\n"
+        out += ")"
+        out +="\n\n"
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
