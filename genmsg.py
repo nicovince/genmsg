@@ -65,6 +65,7 @@ class MessageElt(object):
         indent_prefix = level*indent*" "
 
         out = "/* %s */\n" % (self.desc)
+        out += "#pragma pack(push, 1)\n"
         out += "typedef struct {\n"
 
         for f in self.fields:
@@ -75,8 +76,10 @@ class MessageElt(object):
                                               f.field_type.replace("[]", ""),
                                               f.name, array_suffix, f.desc)
 
-        out += "} %s_t;\n\n" % (self.name)
+        out += "} %s_t;\n" % (self.name)
+        out += "#pragma pack(pop)\n"
 
+        out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
@@ -353,6 +356,8 @@ class DefsGen(object):
 
     def process_enums_defs(self):
         """Read enums definitions and build objects accordingly"""
+        if "enums" not in self.defs.keys():
+            return
         for e in self.defs["enums"]:
             enum_elt = EnumElt(e)
             self.enums.append(enum_elt)
