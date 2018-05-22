@@ -61,7 +61,7 @@ class MessageElt(object):
         self.check_message()
 
     def get_struct_c_def(self, indent=4, level=0):
-        """Return string with C struct declaration properly indented"""
+        """Return string with C struct declaration of messages"""
         indent_prefix = level*indent*" "
 
         out = "/* %s */\n" % (self.desc)
@@ -82,6 +82,13 @@ class MessageElt(object):
         out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_define_msg_name(self):
+        return self.name.upper()
+
+    def get_define_msg_id_def(self):
+        out = "#define %s %d\n" % (self.get_define_msg_name(), self.id)
         return out
 
     def get_struct_py_fmt(self):
@@ -285,7 +292,7 @@ class EnumElt(object):
         self.check_enum()
 
     def get_enum_c_def(self, indent=4, level=0):
-        """Return string with C enum declaration properly indented"""
+        """Return string with C enum declaration"""
         indent_prefix = level*indent*" "
         out = "/* %s */\n" % (self.desc)
         out += "typedef enum %s_e {\n" % (self.name)
@@ -302,7 +309,7 @@ class EnumElt(object):
         return out
 
     def get_enum_py_def(self, indent=4, level=0):
-        """Return string with python enum declaration properly indented"""
+        """Return string with python enum declaration"""
         indent_prefix = level*indent*" "
         out = "# %s\n" % (self.desc)
         out += "class %s(Enum):\n" % (self.name)
@@ -413,6 +420,7 @@ class DefsGen(object):
 
                 # Write Messages C definitions
                 for m in self.messages:
+                    h_fd.write(m.get_define_msg_id_def())
                     h_fd.write(m.get_struct_c_def())
 
                 # Write Enums C definitions
