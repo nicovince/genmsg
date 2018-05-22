@@ -407,6 +407,7 @@ class DefsGen(object):
         for m in self.messages:
             msg_class_name = snake_to_camel(m.name)
             out += "msg_map[%s.msg_id] = %s\n" % (msg_class_name, msg_class_name)
+            out += "msg_map[\"%s\"] = %s\n" % (msg_class_name, msg_class_name)
         out += "\n\n"
         out += "def msg_creator(msg_id, msg_len, data):\n"
         cl += 1
