@@ -85,7 +85,7 @@ class MessageElt(object):
         return out
 
     def get_define_msg_name(self):
-        return self.name.upper()
+        return self.name.upper() + "_ID"
 
     def get_define_msg_id_def(self):
         out = "#define %s %d\n" % (self.get_define_msg_name(), self.id)
@@ -392,7 +392,8 @@ class DefsGen(object):
         cl = 0
         out = "msg_map = dict()\n"
         for m in self.messages:
-            out += "msg_map[%d] = %s\n" % (m.id, snake_to_camel(m.name))
+            msg_class_name = snake_to_camel(m.name)
+            out += "msg_map[%s.msg_id] = %s\n" % (msg_class_name, msg_class_name)
         out += "\n\n"
         out += "def msg_creator(msg_id, msg_len, data):\n"
         cl += 1
