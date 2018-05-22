@@ -115,6 +115,7 @@ class MessageElt(object):
         out += self.get_struct_fmt_py_def(indent=indent, level=level+1)
         out += self.get_pack_py_def(indent=indent, level=level+1)
         out += self.get_unpack_py_def(indent=indent, level=level+1)
+        out += self.get_helper_def(indent=indent, level=level+1)
 
         out += "\n"
         # indent to requested level
@@ -259,6 +260,18 @@ class MessageElt(object):
         out += ")"
         out += "\n\n"
 
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_helper_def(self, indent=4, level=0):
+        """Return string which display message format to help out user"""
+        out = "@classmethod\n"
+        out += "def helper(cls):\n"
+        for f in self.fields:
+            out += "%sprint(\"%s: %s\")\n" % (indent*' ', f.name, f.field_type)
+
+        out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
