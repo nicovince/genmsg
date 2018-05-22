@@ -334,12 +334,13 @@ class EnumElt(object):
 
 
 class DefsGen(object):
-    def __init__(self, defs, indent, out_dir, h_gen, py_gen):
+    def __init__(self, defs, indent, h_gen, h_dest, py_gen, py_dest):
         self.defs = defs
         self.indent = indent
-        self.out_dir = out_dir
         self.h_gen = h_gen
+        self.h_dest = h_dest
         self.py_gen = py_gen
+        self.py_dest = py_dest
         self.filename_prefix = "messages"
 
         self.messages = list()
@@ -406,7 +407,7 @@ class DefsGen(object):
 
     def process_defs(self):
         if self.h_gen:
-            h_file = self.filename_prefix + ".h"
+            h_file = self.h_dest + "/" + self.filename_prefix + ".h"
             with open(h_file, 'w') as h_fd:
                 h_fd.write(self.get_h_header())
 
@@ -420,7 +421,7 @@ class DefsGen(object):
                 h_fd.write(self.get_h_footer())
 
         if self.py_gen:
-            py_file = self.filename_prefix + ".py"
+            py_file = self.py_dest + "/" + self.filename_prefix + ".py"
             with open(py_file, 'w') as py_fd:
                 py_fd.write(self.get_py_header())
 
@@ -441,19 +442,25 @@ def main():
     parser = argparse.ArgumentParser(description="Process yaml message and enum definition to generate C structure or python serializing/deserializing",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("yaml_file", type=str,
-                        help="Json file containing messages definitions")
+                        help="Yaml file containing messages definitions")
     parser.add_argument("--indent", type=int, default=4,
                         help="number of spaces per indentation")
     parser.add_argument("--h-gen", action='store_true', default=False,
                         help="Enable generation of c header files containing struct and enums")
+    parser.add_argument("--h-dest", type=str, default="./",
+                        help="destination folder for header files")
     parser.add_argument("--py-gen", action='store_true', default=False,
                         help="Enable generation of python files containing struct and enums")
+    parser.add_argument("--py-dest", type=str, default="./",
+                        help="destination folder for python files")
     args = parser.parse_args()
 
     msg_file = open(args.yaml_file)
     messages = yaml.safe_load(msg_file)
 
-    defs_gen = DefsGen(messages, args.indent, ".", args.h_gen, args.py_gen)
+    defs_gen = DefsGen(messages, args.indent,
+                       args.h_gen, args.h_dest,
+                       args.py_gen, args.py_dest)
     defs_gen.process_defs()
 
 
