@@ -6,6 +6,7 @@ import struct
 import threading
 import serial
 import messages
+import sys
 
 
 class SlipState(Enum):
@@ -197,7 +198,13 @@ def main():
     parser.add_argument("--data", type=int, choices=range(0, 256),
                         metavar="[0-255]", nargs="*", help="data",
                         default=bytes([]))
+    parser.add_argument("--print-msg", type=str, default=None,
+                        help="Display message format")
     args = parser.parse_args()
+
+    if args.print_msg is not None:
+        messages.msg_map[args.print_msg].helper()
+        sys.exit(0)
 
     payload = SlipPayload(args.pid, args.seq, bytes(args.data))
     print(payload)
