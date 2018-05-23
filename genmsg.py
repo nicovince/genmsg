@@ -12,12 +12,12 @@ ctype_to_struct_fmt["uint16_t"] = "H"
 ctype_to_struct_fmt["int16_t"] = "h"
 ctype_to_struct_fmt["uint32_t"] = "I"
 ctype_to_struct_fmt["int32_t"] = "i"
-ctype_to_struct_fmt["uint8_t[]"] = "%%dB"
-ctype_to_struct_fmt["int8_t[]"] = "%%db"
-ctype_to_struct_fmt["uint16_t[]"] = "%%dH"
-ctype_to_struct_fmt["int16_t[]"] = "%%dh"
-ctype_to_struct_fmt["uint32_t[]"] = "%%dI"
-ctype_to_struct_fmt["int32_t[]"] = "%%di"
+ctype_to_struct_fmt["uint8_t[]"] = "%dB"
+ctype_to_struct_fmt["int8_t[]"] = "%db"
+ctype_to_struct_fmt["uint16_t[]"] = "%dH"
+ctype_to_struct_fmt["int16_t[]"] = "%dh"
+ctype_to_struct_fmt["uint32_t[]"] = "%dI"
+ctype_to_struct_fmt["int32_t[]"] = "%di"
 
 
 def ctype_to_pack_format(t):
@@ -43,6 +43,14 @@ def snake_to_camel(word):
 
 class StructField(object):
     """Field of a structure/message"""
+    ctype_range = dict()
+    ctype_range["uint8_t"] = [0, 255]
+    ctype_range["int8_t"] = [-128, 127]
+    ctype_range["uint16_t"] = [0, 2**16-1]
+    ctype_range["int16_t"] = [-(2**15), 2**15-1]
+    ctype_range["uint32_t"] = [0, 2**32-1]
+    ctype_range["int32_t"] = [-(2**31), 2**31-1]
+
     def __init__(self, name, field_type, desc):
         self.name = name
         self.field_type = field_type
@@ -53,6 +61,11 @@ class StructField(object):
 
     def is_ctype(self):
         return self.field_type in ctype_to_struct_fmt.keys()
+
+    def get_range(self):
+        """return tuple with min/max value"""
+        if self.is_ctype:
+            return self.ctype_range[self.field_type.replace("[]", "")]
 
 
     def get_field_fmt(self):
@@ -65,6 +78,7 @@ class StructField(object):
                 out = "%s" % (fmt)
             else:
                 out = "%%d%s" % (fmt)
+            out = "%s" % (fmt)
         else:
             # TODO: handle array of complex type
             out = "%ds"
@@ -162,6 +176,7 @@ class MessageElt(object):
         out += self.get_init_py_def(indent=indent, level=level+1)
         out += self.get_repr_py_def(indent=indent, level=level+1)
         out += self.get_str_py_def(indent=indent, level=level+1)
+        out += self.get_eq_py_def(indent=indent, level=level+1)
         out += self.get_len_py_def(indent=indent, level=level+1)
         out += self.get_fields_py_def(indent=indent, level=level+1)
         out += self.get_struct_fmt_py_def(indent=indent, level=level+1)
@@ -169,6 +184,8 @@ class MessageElt(object):
         out += self.get_pack_py_def(indent=indent, level=level+1)
         out += self.get_unpack_py_def(indent=indent, level=level+1)
         out += self.get_helper_def(indent=indent, level=level+1)
+        out += self.get_rand_py_def(indent=indent, level=level+1)
+        out += self.get_autotest_py_def(indent=indent, level=level+1)
 
         out += "\n"
         # indent to requested level
@@ -304,6 +321,67 @@ class MessageElt(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_eq_py_def(self, indent=4, level=0):
+        """Return __eq__ method"""
+        out = "def __eq__(self, other):\n"
+        out += "%sres = True\n" % (indent*' ')
+        for f in self.fields:
+            out += "%sres = res and (self.%s == other.%s)\n" % (indent*' ',
+                                                                f.name, f.name)
+        out += "%sreturn res\n\n" % (indent*' ')
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_rand_py_def(self, indent=4, level=0):
+        """Return method which create a random message"""
+        out = "@classmethod\n"
+        out += "def rand(cls):\n"
+        byte_offset = 0
+        for f in self.fields:
+            if f.is_ctype():
+                if f.is_array():
+                    out += "%s%s = random.sample(range(%d, %d), random.randint(0, %d))\n" % (indent*' ',
+                                                                                             f.name,
+                                                                                             f.get_range()[0],
+                                                                                             f.get_range()[1],
+                                                                                             256-byte_offset)
+                else:
+                    out += "%s%s = random.randint(*%s)\n" % (indent*' ',
+                                                             f.name,
+                                                             f.get_range())
+
+
+            else:
+                out += "%s%s = %s.rand()\n" % (indent*' ',
+                                               f.name,
+                                               snake_to_camel(f.field_type))
+
+        out += "%sreturn %s(" % (indent*' ', snake_to_camel(self.name))
+        for f in self.fields:
+            out += "%s=%s, " % (f.name, f.name)
+
+        out += ")\n\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_autotest_py_def(self, indent=4, level=0):
+
+        """Return method testing the class"""
+        out = "@classmethod\n"
+        out += "def autotest(cls):\n"
+        out += "%sinst1 = cls.rand()\n" % (indent*' ')
+        out += "%sprint(inst1.pack())\n" % (indent*' ')
+        out += "%sprint(str(inst1))\n" % (indent*' ')
+        out += "%sreturn inst1 == inst1.unpack(inst1.pack())\n" % (indent*' ')
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def get_unpack_struct_fmt_py_def(self, indent=4, level=0):
         """Return struct format for unpacking of message containing a complex type"""
         out = "@staticmethod\n"
@@ -321,9 +399,6 @@ class MessageElt(object):
                 opt_va_arg = " %% ((len(data)-struct.calcsize(fmt))/%d)" % (struct.calcsize(f.get_fmt()))
             elif not f.is_ctype() and not f.is_array():
                 opt_va_arg = " % (len(data))"
-            print("%s-%s : ctype:%s array:%s -> %s" % (self.name, f.field_type,
-                                                       f.is_ctype(), f.is_array(),
-                                                       opt_va_arg))
             out += "%sfmt += \"%s\"%s\n" % (cl*indent*' ',
                                            f.get_field_fmt(),
                                            opt_va_arg)
@@ -335,25 +410,32 @@ class MessageElt(object):
         return out
 
     def get_unpack_py_def(self, indent=4, level=0):
-        """return unpack method which"""
+        """return unpack method which convert byte to message object"""
         # Field names of Message
         field_names = [f.name for f in self.fields]
 
-        #TODO: unpack complex type with fmt = %ds % len(type)
-        # and then call unpack from complex type class
         out = "@classmethod\n"
         out += "def unpack(cls, data):\n"
         out += "%smsg_fmt = \"<%%s\" %% (cls.get_unpack_struct_fmt(data))\n" % (indent*' ')
         #out += "%smsg_fmt += cls.struct_fmt(data)\n" % (indent*' ')
         out += "%s(%s) = " % (indent*' ', ', '.join(field_names))
         out += "struct.unpack(msg_fmt, data)"
-
         if len(field_names) == 1 and "[]" not in self.fields[0].field_type:
             # message has only one element and it is not an array
             # unpack returns a tuple so we need to get the first element in
             # local var
             out += "[0]"
         out += "\n"
+
+        # Convert bytes of complex type to proper object
+        for f in self.fields:
+            if f.is_array():
+                out += "%s%s = list(%s)\n" % (indent *' ', f.name, f.name)
+            if not f.is_ctype():
+                out += "%s%s = %s.unpack(%s)\n" % (indent*' ', f.name,
+                                                   snake_to_camel(f.field_type),
+                                                   f.name)
+
         out += "%sreturn %s(" % (indent*' ', snake_to_camel(self.name))
         for f in field_names:
             out += "%s=%s, " % (f, f)
@@ -506,6 +588,7 @@ class DefsGen(object):
     def get_py_header(self):
         s = "#!/usr/bin/env python3\n"
         s += "from enum import Enum\n"
+        s += "import random\n"
         s += "import struct\n\n\n"
         return s
 
@@ -533,6 +616,16 @@ class DefsGen(object):
         cl += 1
         indent_prefix = cl*indent*' '
         out += "%sreturn data\n\n" % (indent_prefix)
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_autotest_py_def(self, indent=4, level=0):
+        out = "def autotest():\n"
+        for m in self.messages:
+            out += "%s%s.autotest()\n" % (indent*' ', snake_to_camel(m.name))
+        out += "%s\n" % (indent*' ')
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -568,6 +661,7 @@ class DefsGen(object):
                     py_fd.write(e.get_enum_py_def())
 
                 py_fd.write(self.get_msg_creator_py_def())
+                py_fd.write(self.get_autotest_py_def())
 
                 py_fd.write("# End of file\n")
 
