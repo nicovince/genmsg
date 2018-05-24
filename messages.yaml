@@ -49,6 +49,14 @@ messages:
   id: 4
   desc: "simple message without payload"
 
+- name: send_array
+  id: 5
+  desc: "Send array with fixed size"
+  fields:
+  - name: array_fixed_size
+    type: uint8_t[15]
+    desc: "Fixed size array"
+
 - name: timer_config
   id: 129
   desc: Timer configuration

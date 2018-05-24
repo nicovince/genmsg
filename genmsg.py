@@ -51,22 +51,46 @@ class StructField(object):
     ctype_range["uint32_t"] = [0, 2**32-1]
     ctype_range["int32_t"] = [-(2**31), 2**31-1]
 
+    array_re = re.compile(r"^\w+\[(\d*)\]")
+
     def __init__(self, name, field_type, desc):
         self.name = name
         self.field_type = field_type
         self.desc = desc
+        # Check if field is an array and retrieve length
+        match_array = self.array_re.match(self.field_type)
+        if match_array is not None:
+            array_len = match_array.group(1)
+            if array_len.isdecimal():
+                # Array with fixed size
+                self.array_len = int(array_len)
+            elif re.match("\s*", array_len):
+                # Array with no size limit, length will be hardcoded later
+                self.array_len = -1
+            else:
+                assert False, "Invalid size \"%s\" for array %s" % (self.name, array_len)
+        else:
+            self.array_len = None
 
     def is_array(self):
-        return "[]" in self.field_type
+        return self.array_re.match(self.field_type) is not None
+
+    def get_base_type(self):
+        return re.sub("\[\d*\]", "", self.field_type)
 
     def is_ctype(self):
-        return self.field_type in ctype_to_struct_fmt.keys()
+        return self.get_base_type() in ctype_to_struct_fmt.keys()
 
     def get_range(self):
         """return tuple with min/max value"""
         if self.is_ctype:
-            return self.ctype_range[self.field_type.replace("[]", "")]
+            return self.ctype_range[self.get_base_type()]
 
+    def get_field_len(self):
+        if self.is_array() and not(self.array_len > 0):
+            return None
+        else:
+            return struct.calcsize(self.get_field_fmt())
 
     def get_field_fmt(self):
         """Return format used by struct for the whole field
@@ -77,7 +101,11 @@ class StructField(object):
             if not self.is_array():
                 out = "%s" % (fmt)
             else:
-                out = "%%d%s" % (fmt)
+                if self.array_len > 0:
+                    # Size of array has been defined in field definition
+                    out = "%d%s" (self.array_len, fmt)
+                else:
+                    out = "%%d%s" % (fmt)
             out = "%s" % (fmt)
         else:
             # TODO: handle array of complex type
@@ -88,7 +116,7 @@ class StructField(object):
         """Return format used by struct without considering if it is an array"""
         if self.is_ctype():
             # Get root type
-            t = self.field_type.replace("[]", "")
+            t = self.get_base_type()
             out = ctype_to_struct_fmt[t]
         else:
             out = "s"
@@ -96,7 +124,7 @@ class StructField(object):
 
     def get_pack_va(self):
         suffix = ""
-        if "[]" in self.field_type:
+        if self.is_array():
             prefix = "*"
         elif not is_ctype(self.field_type):
             prefix = "*"
@@ -137,7 +165,11 @@ class MessageElt(object):
         for f in self.fields:
             array_suffix = ""
             if "[]" in f.field_type:
+                # TODO: compute size of previous elements and remove it from array size
                 array_suffix = "[255]"
+            if f.is_array() and f.array_len:
+                array_suffix = "[%d]" % (f.array_len)
+
             out += "%s%s %s%s; /* %s */\n" % (indent*" ",
                                               f.field_type.replace("[]", ""),
                                               f.name, array_suffix, f.desc)
@@ -219,7 +251,7 @@ class MessageElt(object):
         cl = 1
         out += "%sfmt = \"\"\n" % (cl*indent*' ')
         for f in self.fields:
-            if "[]" not in f.field_type:
+            if not(f.is_array()):
                 # Get struct format for common types (int8, int16, uint8, ...)
                 field_fmt = ctype_to_pack_format(f.field_type)
                 if field_fmt is not None:
@@ -230,7 +262,7 @@ class MessageElt(object):
                     field_fmt = "%s.struct_fmt(data)" % (snake_to_camel(f.field_type))
                     out += "%sfmt += %s\n" % (indent*' ', field_fmt)
             else:
-                array_type = f.field_type.replace("[]", "")
+                array_type = f.get_base_type()
                 field_fmt = ctype_to_pack_format(array_type)
                 out += "%sif type(data) == bytes:\n" % (cl*indent*' ')
                 cl += 1
@@ -254,7 +286,7 @@ class MessageElt(object):
         field_names = [f.name for f in self.fields]
         array_name = "None"
         for f in self.fields:
-            if "[]" in f.field_type:
+            if f.is_array():
                 array_name = "self.%s" % (f.name)
 
         # pack method definition
@@ -319,7 +351,7 @@ class MessageElt(object):
         out = "def __len__(self):\n"
         array_name = "None"
         for f in self.fields:
-            if "[]" in f.field_type:
+            if f.is_array():
                 array_name = "self.%s" % f.name
                 break
 
@@ -350,12 +382,18 @@ class MessageElt(object):
         byte_offset = 0
         for f in self.fields:
             if f.is_ctype():
-                if f.is_array():
+                if f.is_array() and not(f.array_len > 0):
                     out += "%s%s = random.sample(range(%d, %d), random.randint(0, %d))\n" % (indent*' ',
                                                                                              f.name,
                                                                                              f.get_range()[0],
                                                                                              f.get_range()[1],
                                                                                              256-byte_offset)
+                elif f.is_array() and (f.array_len > 0):
+                    out += "%s%s = random.sample(range(%d, %d), %d)\n" % (indent*' ',
+                                                                          f.name,
+                                                                          f.get_range()[0],
+                                                                          f.get_range()[1],
+                                                                          f.array_len)
                 else:
                     out += "%s%s = random.randint(*%s)\n" % (indent*' ',
                                                              f.name,
