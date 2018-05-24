@@ -384,7 +384,7 @@ class MessageElt(object):
         out += "%sinst1 = cls.rand()\n" % (indent*' ')
         out += "%sprint(inst1.pack())\n" % (indent*' ')
         out += "%sprint(str(inst1))\n" % (indent*' ')
-        out += "%sreturn inst1 == inst1.unpack(inst1.pack())\n" % (indent*' ')
+        out += "%sassert(inst1 == inst1.unpack(inst1.pack()))\n" % (indent*' ')
 
         out += "\n"
         # indent to requested level
