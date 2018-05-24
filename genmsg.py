@@ -117,8 +117,12 @@ class MessageElt(object):
         self.name = message["name"]
         self.desc = message["desc"]
 
-        fields = message["fields"]
-        self.fields = [StructField(f["name"], f["type"], f["desc"]) for f in fields]
+        if "fields" in message.keys():
+            fields = message["fields"]
+            self.fields = [StructField(f["name"], f["type"], f["desc"]) for f in fields]
+        else:
+            # empty list when message has no fields
+            self.fields = list()
 
         self.check_message()
 
@@ -201,7 +205,7 @@ class MessageElt(object):
         # assign fields
         for f in field_names:
             out += "%sself.%s = %s\n" % (indent*' ', f, f)
-        out += "\n"
+        out += "%sreturn\n\n" % (indent*' ')
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -269,7 +273,10 @@ class MessageElt(object):
         """Return method definition that return tuple of fields"""
         out = "def get_fields(self):\n"
         field_names = [f.name for f in self.fields]
-        out += "%sreturn [self.%s]\n" % (indent*' ', ', self.'.join(field_names))
+        if len(field_names) > 0:
+            out += "%sreturn [self.%s]\n" % (indent*' ', ', self.'.join(field_names))
+        else:
+            out += "%sreturn []\n" % (indent*' ')
         out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -281,9 +288,11 @@ class MessageElt(object):
         field_names = [f.name for f in self.fields]
         out = "def __repr__(self):\n"
         out += "%sreturn \"%s(" % (indent*" ", snake_to_camel(self.name))
-        out += "%s=%%r" % ('=%r, '.join(field_names))
-        out += ")\" %% (self.%s" % (', self.'.join(field_names))
-        out += ")"
+        if len(field_names) > 0:
+            out += "%s=%%r" % ('=%r, '.join(field_names))
+            out += ")\" %% (self.%s)" % (', self.'.join(field_names))
+        else:
+            out += ")\""
         out += "\n\n"
 
         # indent to requested level
@@ -416,25 +425,26 @@ class MessageElt(object):
 
         out = "@classmethod\n"
         out += "def unpack(cls, data):\n"
-        out += "%smsg_fmt = \"<%%s\" %% (cls.get_unpack_struct_fmt(data))\n" % (indent*' ')
-        #out += "%smsg_fmt += cls.struct_fmt(data)\n" % (indent*' ')
-        out += "%s(%s) = " % (indent*' ', ', '.join(field_names))
-        out += "struct.unpack(msg_fmt, data)"
-        if len(field_names) == 1 and "[]" not in self.fields[0].field_type:
-            # message has only one element and it is not an array
-            # unpack returns a tuple so we need to get the first element in
-            # local var
-            out += "[0]"
-        out += "\n"
+        
+        if len(self.fields) > 0:
+            out += "%smsg_fmt = \"<%%s\" %% (cls.get_unpack_struct_fmt(data))\n" % (indent*' ')
+            out += "%s(%s) = " % (indent*' ', ', '.join(field_names))
+            out += "struct.unpack(msg_fmt, data)"
+            if len(field_names) == 1 and "[]" not in self.fields[0].field_type:
+                # message has only one element and it is not an array
+                # unpack returns a tuple so we need to get the first element in
+                # local var
+                out += "[0]"
+            out += "\n"
 
-        # Convert bytes of complex type to proper object
-        for f in self.fields:
-            if f.is_array():
-                out += "%s%s = list(%s)\n" % (indent *' ', f.name, f.name)
-            if not f.is_ctype():
-                out += "%s%s = %s.unpack(%s)\n" % (indent*' ', f.name,
-                                                   snake_to_camel(f.field_type),
-                                                   f.name)
+            # Convert bytes of complex type to proper object
+            for f in self.fields:
+                if f.is_array():
+                    out += "%s%s = list(%s)\n" % (indent *' ', f.name, f.name)
+                if not f.is_ctype():
+                    out += "%s%s = %s.unpack(%s)\n" % (indent*' ', f.name,
+                                                       snake_to_camel(f.field_type),
+                                                       f.name)
 
         out += "%sreturn %s(" % (indent*' ', snake_to_camel(self.name))
         for f in field_names:
@@ -450,8 +460,9 @@ class MessageElt(object):
         """Return string which display message format to help out user"""
         out = "@classmethod\n"
         out += "def helper(cls):\n"
+        out += "%sprint(\"%s fields:\")\n" % (indent*' ', snake_to_camel(self.name))
         for f in self.fields:
-            out += "%sprint(\"%s: %s\")\n" % (indent*' ', f.name, f.field_type)
+            out += "%sprint(\"  %s: %s\")\n" % (indent*' ', f.name, f.field_type)
 
         out += "\n"
         # indent to requested level

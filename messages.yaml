@@ -8,7 +8,7 @@ types:
   - name: imaginary
     type: uint8_t
     desc: imaginary part of data
-
+            
 messages:
 - name: version
   id: 0
@@ -44,6 +44,10 @@ messages:
   - name: array
     type: uint8_t[]
     desc: array requested
+
+- name: no_payload
+  id: 4
+  desc: "simple message without payload"
 
 - name: timer_config
   id: 129
