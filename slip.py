@@ -170,19 +170,24 @@ class SlipPayload(object):
 
 
 class SlipReader(threading.Thread):
-    def __init__(self, fd):
+    def __init__(self, fd, msg_id=None):
         threading.Thread.__init__(self)
         self.fd = fd
+        self.stop_on_msg_id = msg_id
         self.slip = Slip()
 
     def run(self):
+        """Thread method, decode incoming messages and print them
+        Thread stops either at first message or when particular message id is received
+        """
         while True:
             b = self.fd.read(1)
             rx_buf = self.slip.decode(b)
             if rx_buf is not None:
                 msg = SlipPayload.get_msg(rx_buf)
                 print(msg)
-                return
+                if (self.stop_on_msg_id is None) or (msg.pid == self.stop_on_msg_id):
+                    return
 
 
 def main():
@@ -213,7 +218,7 @@ def main():
     fd = serial.Serial(port=args.slip_interface, baudrate=9600)
 
     # Start reader thread
-    slip_reader = SlipReader(fd)
+    slip_reader = SlipReader(fd, args.pid | 0x80)
     slip_reader.start()
 
     # Send data
