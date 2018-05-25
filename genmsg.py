@@ -159,23 +159,26 @@ class MessageElt(object):
         indent_prefix = level*indent*" "
 
         out = "/* %s */\n" % (self.desc)
-        out += "#pragma pack(push, 1)\n"
-        out += "typedef struct {\n"
+        if len(self.fields) > 0:
+            out += "#pragma pack(push, 1)\n"
+            out += "typedef struct {\n"
 
-        for f in self.fields:
-            array_suffix = ""
-            if "[]" in f.field_type:
-                # TODO: compute size of previous elements and remove it from array size
-                array_suffix = "[255]"
-            if f.is_array() and f.array_len:
-                array_suffix = "[%d]" % (f.array_len)
+            for f in self.fields:
+                array_suffix = ""
+                if "[]" in f.field_type:
+                    # TODO: compute size of previous elements and remove it from array size
+                    array_suffix = "[255]"
+                if f.is_array() and f.array_len:
+                    array_suffix = "[%d]" % (f.array_len)
 
-            out += "%s%s %s%s; /* %s */\n" % (indent*" ",
-                                              f.field_type.replace("[]", ""),
-                                              f.name, array_suffix, f.desc)
+                out += "%s%s %s%s; /* %s */\n" % (indent*" ",
+                                                  f.field_type.replace("[]", ""),
+                                                  f.name, array_suffix, f.desc)
 
-        out += "} %s_t;\n" % (self.name)
-        out += "#pragma pack(pop)\n"
+            out += "} %s_t;\n" % (self.name)
+            out += "#pragma pack(pop)\n"
+        else:
+            out += "/* No Fields for this message */\n"
 
         out += "\n"
         # indent to requested level
