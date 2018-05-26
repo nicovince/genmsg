@@ -92,6 +92,10 @@ class StructField(object):
         else:
             return struct.calcsize(self.get_field_fmt())
 
+    def get_class_name(self):
+        if not(self.is_ctype()):
+            return snake_to_camel(self.get_base_type())
+
     def get_field_fmt(self):
         """Return format used by struct for the whole field
         This includes leading %d if the field is an array or complex type
@@ -107,7 +111,6 @@ class StructField(object):
                 else:
                     out = "%%d%s" % (fmt)
         else:
-            # TODO: handle array of complex type
             out = "%ds"
         return out
 
@@ -123,13 +126,17 @@ class StructField(object):
 
     def get_pack_va(self):
         suffix = ""
-        if self.is_array():
-            prefix = "*"
-        elif not is_ctype(self.field_type):
-            prefix = "*"
-            suffix = ".get_fields()"
+        if self.is_ctype():
+            if self.is_array():
+                prefix = "*"
+            else:
+                prefix = ""
         else:
-            prefix = ""
+            if not(self.is_array()):
+                prefix = "*"
+                suffix = ".get_fields()"
+            else:
+                return "*[e.get_fields() for e in self.%s]" % (self.name)
         return "%sself.%s%s" % (prefix, self.name, suffix)
 
 
@@ -217,6 +224,7 @@ class MessageElt(object):
         out += self.get_fields_py_def(indent=indent, level=level+1)
         out += self.get_struct_fmt_py_def(indent=indent, level=level+1)
         out += self.get_unpack_struct_fmt_py_def(indent=indent, level=level+1)
+        out += self.get_unpack_struct_fmt_py_def_old(indent=indent, level=level+1)
         out += self.get_pack_py_def(indent=indent, level=level+1)
         out += self.get_unpack_py_def(indent=indent, level=level+1)
         out += self.get_helper_def(indent=indent, level=level+1)
@@ -251,29 +259,32 @@ class MessageElt(object):
         cl = 1
         out += "%sfmt = \"\"\n" % (cl*indent*' ')
         for f in self.fields:
-            if not(f.is_array()):
-                # Get struct format for common types (int8, int16, uint8, ...)
-                field_fmt = ctype_to_pack_format(f.field_type)
-                if field_fmt is not None:
-                    # Regular type, just paste the format
-                    out += "%sfmt += \"%s\"\n" % (indent*' ', field_fmt)
+            if f.is_ctype():
+                if not(f.is_array()) or (f.array_len > 0):
+                    out += "%sfmt += \"%s\"\n" % (cl*indent*' ', f.get_field_fmt())
                 else:
-                    # User defined type, call struct_fmt from user defined type
-                    field_fmt = "%s.struct_fmt(data)" % (snake_to_camel(f.field_type))
-                    out += "%sfmt += %s\n" % (indent*' ', field_fmt)
+                    out += "%sfmt += \"%s\" %% (len(data))\n" % (cl*indent*' ',
+                                                                f.get_field_fmt())
             else:
-                array_type = f.get_base_type()
-                field_fmt = ctype_to_pack_format(array_type)
-                out += "%sif type(data) == bytes:\n" % (cl*indent*' ')
-                cl += 1
-                out += "%sn_elt = len(data) / struct.calcsize(\"%s\")\n" % (cl*indent*' ',
-                                                                            field_fmt)
-                cl -= 1
-                out += "%selse:\n" % (cl*indent*' ')
-                cl += 1
-                out += "%sn_elt = len(data)\n" % (cl*indent*' ')
-                cl -= 1
-                out += "%sfmt += \"%%d%s\" %% (n_elt)\n" % (cl*indent*' ', field_fmt)
+                # Complex type
+                if not(f.is_array()):
+                    out += "%sfmt += %s.struct_fmt(data)\n" % (cl*indent*' ',
+                                                                   f.get_class_name())
+                elif f.is_array() and f.array_len > 0:
+                    out += "%sfor e in range(%d):\n" % (cl*indent*' ', f.array_len)
+                    cl += 1
+
+                    out += "%sfmt += %s.struct_fmt(data)\n" % (cl*indent*' ',
+                                                                   f.get_class_name())
+                    cl -= 1
+                else:
+                    out += "%sfor e in range(len(data)):\n" % (f.array_len)
+                    cl += 1
+
+                    out += "%sfmt += %s.struct_fmt(data)\n" % (cl*indent*' ',
+                                                               f.get_class_name())
+                    cl -= 1
+
         out += "%sreturn fmt\n\n" % (indent*' ')
 
         # indent to requested level
@@ -291,11 +302,29 @@ class MessageElt(object):
 
         # pack method definition
         out = "def pack(self):\n"
+        cl = 1
         pack_va = ", ".join([f.get_pack_va() for f in self.fields])
-        out += "%sfmt = \"<%%s\" %% (self.struct_fmt(%s))\n" % (indent*" ",
-                                                               array_name)
-        out += "%sreturn struct.pack(fmt, %s)\n\n" % (indent*" ",
-                                                      pack_va)
+        out += "%sva_args = list()\n" % (cl*indent*' ')
+        for f in self.fields:
+            if f.is_ctype():
+                if not(f.is_array()):
+                    out += "%sva_args.append(self.%s)\n" % (cl*indent*' ', f.name)
+                else:
+                    out += "%sva_args.extend(self.%s)\n" % (cl*indent*' ', f.name)
+            else:
+                if not(f.is_array()):
+                    out += "%sva_args.extend(self.%s.get_fields())\n" % (cl*indent*' ',
+                                                                         f.name)
+                else:
+                    out += "%sfor e in self.%s:\n" % (cl*indent*' ', f.name)
+                    cl += 1
+                    out += "%sva_args.extend(e.get_fields())\n" % (cl*indent*' ')
+                    cl -= 1
+
+
+        out += "%sfmt = \"<%%s\" %% (self.struct_fmt(%s))\n" % (cl*indent*" ",
+                                                                array_name)
+        out += "%sreturn struct.pack(fmt, *va_args)\n\n" % (cl*indent*" ")
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -401,9 +430,19 @@ class MessageElt(object):
 
 
             else:
-                out += "%s%s = %s.rand()\n" % (indent*' ',
-                                               f.name,
-                                               snake_to_camel(f.field_type))
+                if f.is_array():
+                    if f.array_len > 0:
+                        n = f.array_len
+                    else:
+                        n = 255/f.get_field_fmt()
+                    out += "%s%s = [%s.rand() for e in range(%d)]\n" % (indent*' ',
+                                                                        f.name,
+                                                                        snake_to_camel(f.get_base_type()),
+                                                                        n)
+                else:
+                    out += "%s%s = %s.rand()\n" % (indent*' ',
+                                                   f.name,
+                                                   snake_to_camel(f.field_type))
 
         out += "%sreturn %s(" % (indent*' ', snake_to_camel(self.name))
         for f in self.fields:
@@ -430,9 +469,59 @@ class MessageElt(object):
         return out
 
     def get_unpack_struct_fmt_py_def(self, indent=4, level=0):
-        """Return struct format for unpacking of message containing a complex type"""
         out = "@staticmethod\n"
         out += "def get_unpack_struct_fmt(data):\n"
+        # Current level of indentation
+        cl = 1
+        # Initialize empty format
+        out += "%sfmt = \"\"\n" % (cl*indent*' ')
+        for f in self.fields:
+            if f.is_ctype():
+                if not(f.is_array()) or f.array_len > 0:
+                    out += "%sfmt += \"%s\"\n" % (cl*indent*' ', f.get_field_fmt())
+                else:
+                    # Unknown array size
+                    # field format contains %d which needs to be computed at 
+                    # runtime
+                    out += "%sif type(data) == bytes:\n" % (cl*indent*' ')
+                    cl += 1
+                    out += "%sfmt += \"%s\" %% ((len(data) - struct.calcsize(fmt))/%s)\n" % (cl*indent*' ',
+                                                                                             f.get_field_fmt(),
+                                                                                             struct.calcsize(f.get_fmt()))
+                    cl -= 1
+                    out += "%selse:\n" % (cl*indent*' ')
+                    cl += 1
+                    out += "%sfmt += \"%s\" %% (len(data))\n" % (cl*indent*' ',
+                                                                 f.get_field_fmt())
+                    cl -= 1
+            else:
+                # Complex type
+                if not(f.is_array()):
+                    out += "%soffset = struct.calcsize(fmt)\n" % (cl*indent*' ')
+                    arg = "struct.calcsize(%s.get_unpack_struct_fmt(data[offset:]))" % (f.get_class_name())
+                    out += "%sfmt += \"%s\" %% (%s)\n" % (cl*indent*' ',
+                                                          f.get_field_fmt(),
+                                                          arg)
+                else:
+                    # Array of complex type
+                    if f.array_len > 0:
+                        out += "%sfor e in range(%d):\n" % (cl*indent*' ', f.array_len)
+                        cl += 1
+                        arg = "struct.calcsize(%s.get_unpack_struct_fmt(None))" % (f.get_class_name())
+                        out += "%sfmt += \"%s\" %% (%s)\n" % (cl*indent*' ',
+                                                             f.get_field_fmt(),
+                                                             arg)
+                        cl -= 1
+
+        out += "%sreturn fmt\n\n" % (cl*indent*' ')
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_unpack_struct_fmt_py_def_old(self, indent=4, level=0):
+        """Return struct format for unpacking of message containing a complex type"""
+        out = "@staticmethod\n"
+        out += "def get_unpack_struct_fmt_old(data):\n"
         # Current level of indentation
         cl = 1
         # Initialize empty format
@@ -448,10 +537,13 @@ class MessageElt(object):
                 # Size of array is known and already embedded by get_field_fmt
                 opt_va_arg = ""
             elif not f.is_ctype() and not f.is_array():
-                opt_va_arg = " %% (%s.n_fields)" % (snake_to_camel(f.field_type))
+                opt_va_arg = " %% (%s.n_fields)" % (snake_to_camel(f.get_base_type()))
+            elif not f.is_ctype() and f.is_array():
+                if f.array_len > 0:
+                    opt_va_arg = " %% (%d)" % (f.array_len)
             out += "%sfmt += \"%s\"%s\n" % (cl*indent*' ',
-                                           f.get_field_fmt(),
-                                           opt_va_arg)
+                                            f.get_field_fmt(),
+                                            opt_va_arg)
         out += "%sreturn fmt\n" % (cl*indent*' ')
 
         out += "\n"
@@ -488,26 +580,46 @@ class MessageElt(object):
                         out += "%s%s = unpacked[%d]\n" % (indent*' ', f.name, offset)
                         offset += 1
                 else:
-                    if f.is_ctype() and (f.array_len > 0):
-                        # Array size is known in advance,
-                        # retrieve exact number of elements
-                        out += "%s%s = unpacked[%d:%d]\n" % (indent*' ', f.name,
-                                                             offset,
-                                                             offset + f.array_len)
-                    elif f.is_ctype() and not(f.array_len > 0):
-                        # Array size is known at runtime only
-                        # Such arrays *must* be at the end of the message definition,
-                        # therefore we know there is nothing after.
-                        out += "%s%s = unpacked[%d:]\n" % (indent*' ', f.name, offset)
+                    if f.is_ctype():
+                        if (f.array_len > 0):
+                            # Array size is known in advance,
+                            # retrieve exact number of elements
+                            out += "%s%s = unpacked[%d:%d]\n" % (indent*' ', f.name,
+                                                                 offset,
+                                                                 offset + f.array_len)
+                            offset += f.array_len
+                        else:
+                            # Array size is known at runtime only
+                            # Such arrays *must* be at the end of the message definition,
+                            # therefore we know there is nothing after.
+                            out += "%s%s = unpacked[%d:]\n" % (indent*' ', f.name, offset)
+                    else:
+                        # Complex type
+                        if f.array_len > 0:
+                            out += "%s%s = unpacked[%d:%d]\n" % (indent*' ', f.name,
+                                                                 offset,
+                                                                 offset + f.array_len)
+                            offset += f.array_len
+                        else:
+                            # Array size is known at runtime only
+                            # Such arrays *must* be at the end of the message definition,
+                            # therefore we know there is nothing after.
+                            out += "%s%s = unpacked[%d:]\n" % (indent*' ', f.name, offset)
 
             # Convert bytes of complex type to proper object
             for f in self.fields:
                 if f.is_array():
                     out += "%s%s = list(%s)\n" % (indent *' ', f.name, f.name)
                 if not f.is_ctype():
-                    out += "%s%s = %s.unpack(%s)\n" % (indent*' ', f.name,
-                                                       snake_to_camel(f.field_type),
-                                                       f.name)
+                    if not(f.is_array()):
+                        out += "%s%s = %s.unpack(%s)\n" % (indent*' ', f.name,
+                                                           f.get_class_name(),
+                                                           f.name)
+                    else:
+                        out += "%s%s = [%s.unpack(e) for e in %s]\n" % (indent*" ",
+                                                                      f.name,
+                                                                      f.get_class_name(),
+                                                                      f.name)
 
         out += "%sreturn %s(" % (indent*' ', snake_to_camel(self.name))
         for f in field_names:
