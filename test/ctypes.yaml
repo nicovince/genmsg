@@ -32,3 +32,11 @@ messages:
     type: uint16_t
     desc: "y coordinates"
 
+- name: width
+  id: 0
+  desc: "Width of whathever"
+  fields:
+  - name: width
+    type: uint8_t
+    desc: "whatever width"
+

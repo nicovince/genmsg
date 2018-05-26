@@ -561,13 +561,7 @@ class MessageElt(object):
         
         if len(self.fields) > 0:
             out += "%smsg_fmt = \"<%%s\" %% (cls.get_unpack_struct_fmt(data))\n" % (indent*' ')
-            out += "%sunpacked = struct.unpack(msg_fmt, data)" % (indent*' ')
-            if len(field_names) == 1 and not(self.fields[0].is_array()) and self.fields[0].is_ctype():
-                # message has only one element and it is not an array
-                # unpack returns a tuple so we need to get the first element in
-                # local var
-                out += "[0]"
-            out += "\n"
+            out += "%sunpacked = struct.unpack(msg_fmt, data)\n" % (indent*' ')
 
             # Assign each field from raw unpacked
             offset = 0
