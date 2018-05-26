@@ -57,6 +57,7 @@ class StructField(object):
         self.name = name
         self.field_type = field_type
         self.desc = desc
+        self.enum = None
         # Check if field is an array and retrieve length
         match_array = self.array_re.match(self.field_type)
         if match_array is not None:
@@ -71,6 +72,9 @@ class StructField(object):
                 assert False, "Invalid size \"%s\" for array %s" % (self.name, array_len)
         else:
             self.array_len = None
+
+    def attach_enum(self, name):
+        self.enum = name
 
     def is_array(self):
         return self.array_re.match(self.field_type) is not None
@@ -151,12 +155,14 @@ class MessageElt(object):
         self.name = message["name"]
         self.desc = message["desc"]
 
+        self.fields = list()
         if "fields" in message.keys():
             fields = message["fields"]
-            self.fields = [StructField(f["name"], f["type"], f["desc"]) for f in fields]
-        else:
-            # empty list when message has no fields
-            self.fields = list()
+            for f in fields:
+                struct_field = StructField(f["name"], f["type"], f["desc"])
+                if "enum" in f:
+                    struct_field.attach_enum(f["enum"])
+                self.fields.append(struct_field)
 
         self.check_message()
 
@@ -243,8 +249,13 @@ class MessageElt(object):
 
         out = "def __init__(self, %s):\n" % (', '.join(field_names))
         # assign fields
-        for f in field_names:
-            out += "%sself.%s = %s\n" % (indent*' ', f, f)
+        for f in self.fields:
+            if f.enum is not None:
+                out += "%sassert %s in [c.value for c in %s], \"Invalid value for %s\"\n" % (indent*' ',
+                                                                                             f.name,
+                                                                                             snake_to_camel(f.enum),
+                                                                                             f.name)
+            out += "%sself.%s = %s\n" % (indent*' ', f.name, f.name)
         out += "%sreturn\n\n" % (indent*' ')
 
         # indent to requested level
@@ -363,12 +374,17 @@ class MessageElt(object):
     def get_str_py_def(self, indent=4, level=0):
         """return __str__ method for message"""
         # Field names of message
-        field_names = [f.name for f in self.fields]
         out = "def __str__(self):\n"
         out += "%sout = \"\"\n" % (indent*' ')
-        for f in field_names:
-            out += "%sout += \"%s: %%s\\n\" %% (str(self.%s))\n" % (indent*' ',
-                                                                    f, f)
+        for f in self.fields:
+            if f.enum is None:
+                out += "%sout += \"%s: %%s\\n\" %% (str(self.%s))\n" % (indent*' ',
+                                                                        f.name, f.name)
+            else:
+                out += "%sout += \"%s: %%s\\n\" %% (%s(self.%s).name)\n" % (indent*' ',
+                                                                            f.name,
+                                                                            snake_to_camel(f.enum),
+                                                                            f.name)
         out += "%sreturn out\n\n" % (indent*' ')
 
         # indent to requested level
@@ -411,23 +427,29 @@ class MessageElt(object):
         byte_offset = 0
         for f in self.fields:
             if f.is_ctype():
-                if f.is_array() and not(f.array_len > 0):
-                    out += "%s%s = random.sample(range(%d, %d), random.randint(0, %d))\n" % (indent*' ',
-                                                                                             f.name,
-                                                                                             f.get_range()[0],
-                                                                                             f.get_range()[1],
-                                                                                             256-byte_offset)
-                elif f.is_array() and (f.array_len > 0):
-                    out += "%s%s = random.sample(range(%d, %d), %d)\n" % (indent*' ',
-                                                                          f.name,
-                                                                          f.get_range()[0],
-                                                                          f.get_range()[1],
-                                                                          f.array_len)
+                if f.enum is None:
+                    population_str = "range(%d, %d)" % (f.get_range()[0], f.get_range()[1])
                 else:
-                    out += "%s%s = random.randint(*%s)\n" % (indent*' ',
-                                                             f.name,
-                                                             f.get_range())
-
+                    population_str = "list([c.value for c in %s][:-1])" % (snake_to_camel(f.enum))
+                if f.is_array() and not(f.array_len > 0):
+                    out += "%s%s = random.sample(%s, random.randint(0, %d))\n" % (indent*' ',
+                                                                                  f.name,
+                                                                                  population_str,
+                                                                                  256-byte_offset)
+                elif f.is_array() and (f.array_len > 0):
+                    out += "%s%s = random.sample(%s, %d)\n" % (indent*' ',
+                                                               f.name,
+                                                               population_str,
+                                                               f.array_len)
+                else:
+                    if f.enum is None:
+                        out += "%s%s = random.randint(*%s)\n" % (indent*' ',
+                                                                 f.name,
+                                                                 f.get_range())
+                    else:
+                        out += "%s%s = random.choice(%s)\n" % (indent*' ',
+                                                               f.name,
+                                                               population_str)
 
             else:
                 if f.is_array():
@@ -687,7 +709,7 @@ class EnumElt(object):
         """Return string with python enum declaration"""
         indent_prefix = level*indent*" "
         out = "# %s\n" % (self.desc)
-        out += "class %s(Enum):\n" % (self.name)
+        out += "class %s(Enum):\n" % (snake_to_camel(self.name))
         max_enum_val = 0
         for e in self.entries:
             out += "%s%s = %d  # %s\n" % (indent*" ", e.name, e.value, e.desc)
