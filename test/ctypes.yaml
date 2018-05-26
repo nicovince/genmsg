@@ -1,0 +1,34 @@
+messages:
+- name: version
+  id: 0
+  desc: "Send Version number"
+  fields:
+  - name: major
+    type: uint8_t
+    desc: "major version number"
+  - name: minor
+    type: uint8_t
+    desc: "minor version number"
+
+- name: cartesian_coordinates
+  id: 1
+  desc: "Send xy coordinates"
+  fields:
+  - name: x
+    type: uint32_t
+    desc: "x coordinates"
+  - name: y
+    type: uint32_t
+    desc: "y coordinates"
+
+- name: polar_coordinates
+  id: 1
+  desc: "Send ro,teta coordinates"
+  fields:
+  - name: ro
+    type: uint16_t
+    desc: "x coordinates"
+  - name: teta
+    type: uint16_t
+    desc: "y coordinates"
+

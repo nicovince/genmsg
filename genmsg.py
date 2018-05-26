@@ -96,17 +96,16 @@ class StructField(object):
         """Return format used by struct for the whole field
         This includes leading %d if the field is an array or complex type
         """
-        if is_ctype(self.field_type):
-            fmt = ctype_to_struct_fmt[self.field_type]
+        if self.is_ctype():
+            fmt = ctype_to_struct_fmt[self.get_base_type()]
             if not self.is_array():
                 out = "%s" % (fmt)
             else:
                 if self.array_len > 0:
                     # Size of array has been defined in field definition
-                    out = "%d%s" (self.array_len, fmt)
+                    out = "%d%s" % (self.array_len, fmt)
                 else:
                     out = "%%d%s" % (fmt)
-            out = "%s" % (fmt)
         else:
             # TODO: handle array of complex type
             out = "%ds"
@@ -205,6 +204,7 @@ class MessageElt(object):
         out = "# %s\n" % self.desc
         out += "class %s(object):\n" % snake_to_camel(self.name)
         current_level = current_level + 1
+        out += "%sn_fields = %d\n\n" % (current_level*indent*" ", len(self.fields))
         if self.id is not None:
             out += "%smsg_id = %d\n\n" % (current_level*indent*" ", self.id)
 
@@ -273,7 +273,7 @@ class MessageElt(object):
                 cl += 1
                 out += "%sn_elt = len(data)\n" % (cl*indent*' ')
                 cl -= 1
-                out += "%sfmt += \"%%d%s\" %% (n_elt - struct.calcsize(fmt))\n" % (cl*indent*' ', field_fmt)
+                out += "%sfmt += \"%%d%s\" %% (n_elt)\n" % (cl*indent*' ', field_fmt)
         out += "%sreturn fmt\n\n" % (indent*' ')
 
         # indent to requested level
@@ -440,12 +440,15 @@ class MessageElt(object):
 
         for f in self.fields:
             opt_va_arg = ""
-            if f.is_ctype() and f.is_array():
+            if f.is_ctype() and f.is_array() and not(f.array_len > 0):
                 # For array we need to provide length
                 # computed as len(data)/struct.calcsize(fmt)
                 opt_va_arg = " %% ((len(data)-struct.calcsize(fmt))/%d)" % (struct.calcsize(f.get_fmt()))
+            elif f.is_ctype() and f.is_array() and (f.array_len > 0):
+                # Size of array is known and already embedded by get_field_fmt
+                opt_va_arg = ""
             elif not f.is_ctype() and not f.is_array():
-                opt_va_arg = " % (len(data))"
+                opt_va_arg = " %% (%s.n_fields)" % (snake_to_camel(f.field_type))
             out += "%sfmt += \"%s\"%s\n" % (cl*indent*' ',
                                            f.get_field_fmt(),
                                            opt_va_arg)
@@ -466,14 +469,36 @@ class MessageElt(object):
         
         if len(self.fields) > 0:
             out += "%smsg_fmt = \"<%%s\" %% (cls.get_unpack_struct_fmt(data))\n" % (indent*' ')
-            out += "%s(%s) = " % (indent*' ', ', '.join(field_names))
-            out += "struct.unpack(msg_fmt, data)"
-            if len(field_names) == 1 and "[]" not in self.fields[0].field_type:
+            out += "%sunpacked = struct.unpack(msg_fmt, data)" % (indent*' ')
+            if len(field_names) == 1 and not(self.fields[0].is_array()) and self.fields[0].is_ctype():
                 # message has only one element and it is not an array
                 # unpack returns a tuple so we need to get the first element in
                 # local var
                 out += "[0]"
             out += "\n"
+
+            # Assign each field from raw unpacked
+            offset = 0
+            for f in self.fields:
+                if not(f.is_array()):
+                    if f.is_ctype():
+                        out += "%s%s = unpacked[%d]\n" % (indent*' ', f.name, offset)
+                        offset += 1
+                    else:
+                        out += "%s%s = unpacked[%d]\n" % (indent*' ', f.name, offset)
+                        offset += 1
+                else:
+                    if f.is_ctype() and (f.array_len > 0):
+                        # Array size is known in advance,
+                        # retrieve exact number of elements
+                        out += "%s%s = unpacked[%d:%d]\n" % (indent*' ', f.name,
+                                                             offset,
+                                                             offset + f.array_len)
+                    elif f.is_ctype() and not(f.array_len > 0):
+                        # Array size is known at runtime only
+                        # Such arrays *must* be at the end of the message definition,
+                        # therefore we know there is nothing after.
+                        out += "%s%s = unpacked[%d:]\n" % (indent*' ', f.name, offset)
 
             # Convert bytes of complex type to proper object
             for f in self.fields:

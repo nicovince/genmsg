@@ -1,0 +1,30 @@
+types:
+- name: complex
+  desc: "Hold complex data"
+  fields:
+  - name: real
+    type: uint8_t
+    desc: real part of data
+  - name: imaginary
+    type: uint8_t
+    desc: imaginary part of data
+
+messages:
+- name: one_complex
+  id: 1
+  desc: "conjugate complex data"
+  fields:
+  - name: complex_value
+    type: complex
+    desc: "Complex data"
+
+- name: two_complex
+  id: 1
+  desc: "conjugate complex data"
+  fields:
+  - name: c1
+    type: complex
+    desc: "Complex data1"
+  - name: c2
+    type: complex
+    desc: "Complex data2"
