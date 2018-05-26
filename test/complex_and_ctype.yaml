@@ -10,21 +10,14 @@ types:
     desc: imaginary part of data
 
 messages:
-- name: one_complex
+- name: mul_complex
   id: 1
-  desc: "one complex data"
+  desc: "multiply complex data"
   fields:
+  - name: mul_factor
+    type: uint8_t
+    desc: "Multiplier"
   - name: complex_value
     type: complex
     desc: "Complex data"
 
-- name: two_complex
-  id: 1
-  desc: "two complex data"
-  fields:
-  - name: c1
-    type: complex
-    desc: "Complex data1"
-  - name: c2
-    type: complex
-    desc: "Complex data2"
