@@ -204,7 +204,6 @@ class MessageElt(object):
     def get_class_name(self):
         return snake_to_camel(self.name)
 
-
     def get_struct_c_def(self, indent=4, level=0):
         """Return string with C struct declaration of messages"""
         indent_prefix = level*indent*" "
@@ -531,9 +530,7 @@ class MessageElt(object):
         out = shift_indent_level(out, indent, level)
         return out
 
-
     def get_autotest_py_def(self, indent=4, level=0):
-
         """Return method testing the class"""
         out = "@classmethod\n"
         out += "def autotest(cls):\n"
@@ -861,8 +858,8 @@ class DefsGen(object):
             if m.id is None:
                 continue
             out += "%smsg_map['%s'].get_argparse_group(subparsers)\n" % (indent*' ',
-                                                                        m.get_class_name())
-        out += "\n"
+                                                                         m.get_class_name())
+        out += "\n\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
