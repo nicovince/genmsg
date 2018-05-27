@@ -143,6 +143,41 @@ class StructField(object):
                 return "*[e.get_fields() for e in self.%s]" % (self.name)
         return "%sself.%s%s" % (prefix, self.name, suffix)
 
+    def get_argparse_decl(self, parser_name, indent=4):
+        """Return insctruction to register option to parser"""
+        if self.is_ctype():
+            if self.enum is None:
+                choices = "choices=range(%s, %s)," % (self.get_range()[0], self.get_range()[1])
+                metavar = "metavar='[%s - %s]'," % (self.get_range()[0], self.get_range()[1])
+                default = "default=%r," % (str(self.get_range()[0]))
+            else:
+                choices = "choices=[e.value for e in %s]," % (snake_to_camel(self.enum))
+                metavar = ""
+                default = "default=list(%s)[0].value," % (snake_to_camel(self.enum))
+            # nargs
+            if self.is_array():
+                if self.array_len > 0:
+                    nargs = "nargs=%d," % self.array_len
+                else:
+                    nargs = "nargs='+',"
+            else:
+                nargs = "nargs=1,"
+            out = "%s.add_argument('--%s', %s %s %s %s help='%s')" % (parser_name,
+                                                                      self.name,
+                                                                      nargs,
+                                                                      choices,
+                                                                      metavar,
+                                                                      default,
+                                                                      self.desc)
+        else:
+            default = [0xA, 0xB]
+            out = "%s.add_argument('--%s', nargs='*', default=%s, help='%s')" % (parser_name,
+                                                                                 self.name,
+                                                                                 default,
+                                                                                 self.desc)
+
+        return out
+
 
 class MessageElt(object):
     """Message object created from dictionary definition"""
@@ -165,6 +200,10 @@ class MessageElt(object):
                 self.fields.append(struct_field)
 
         self.check_message()
+
+    def get_class_name(self):
+        return snake_to_camel(self.name)
+
 
     def get_struct_c_def(self, indent=4, level=0):
         """Return string with C struct declaration of messages"""
@@ -235,6 +274,7 @@ class MessageElt(object):
         out += self.get_helper_def(indent=indent, level=level+1)
         out += self.get_rand_py_def(indent=indent, level=level+1)
         out += self.get_autotest_py_def(indent=indent, level=level+1)
+        out += self.get_argparse_group_py_def(indent=indent, level=level+1)
 
         out += "\n"
         # indent to requested level
@@ -472,6 +512,25 @@ class MessageElt(object):
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
+
+    def get_argparse_group_py_def(self, indent=4, level=0):
+        """Return method adding option group to subparser"""
+        out = "@classmethod\n"
+        out += "def get_argparse_group(cls, subparser):\n"
+        parser_name = "parser_%s" % (self.name)
+        formatter_class_str = "formatter_class=argparse.ArgumentDefaultsHelpFormatter"
+        out += "%s%s = subparser.add_parser('%s', %s, help='%s')\n" % (indent*' ',
+                                                                       parser_name,
+                                                                       self.name,
+                                                                       formatter_class_str,
+                                                                       self.desc)
+        for f in self.fields:
+            out += "%s%s\n" % (indent*' ', f.get_argparse_decl(parser_name))
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
 
     def get_autotest_py_def(self, indent=4, level=0):
 
@@ -791,8 +850,22 @@ class DefsGen(object):
         s = "#!/usr/bin/env python3\n"
         s += "from enum import Enum\n"
         s += "import random\n"
+        s += "import argparse\n"
         s += "import struct\n\n\n"
         return s
+
+    def get_update_subparsers_py_def(self, indent=4, level=0):
+        """Return function which update parser with subparsers for each message"""
+        out = "def update_subparsers(subparsers):\n"
+        for m in self.messages:
+            if m.id is None:
+                continue
+            out += "%smsg_map['%s'].get_argparse_group(subparsers)\n" % (indent*' ',
+                                                                        m.get_class_name())
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
 
     def get_msg_creator_py_def(self, indent=4, level=0):
         """Return function capable of returning message from id and data"""
@@ -863,6 +936,7 @@ class DefsGen(object):
                     py_fd.write(e.get_enum_py_def())
 
                 py_fd.write(self.get_msg_creator_py_def())
+                py_fd.write(self.get_update_subparsers_py_def())
                 py_fd.write(self.get_autotest_py_def())
 
                 py_fd.write("# End of file\n")

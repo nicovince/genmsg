@@ -4,6 +4,6 @@ YAML_FILES="ctypes.yaml ctypes_array.yaml ctypes_and_ctypes_array.yaml complex_t
 
 for y in ${YAML_FILES}; do
   ../genmsg.py ${y} --py-gen --h-gen
-  ./autotest.py
+  ./autotest.py --autotest
   gcc main.c -o main
 done
