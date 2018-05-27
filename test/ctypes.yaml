@@ -15,10 +15,10 @@ messages:
   desc: "Send xy coordinates"
   fields:
   - name: x
-    type: uint32_t
+    type: int32_t
     desc: "x coordinates"
   - name: y
-    type: uint32_t
+    type: int32_t
     desc: "y coordinates"
 
 - name: polar_coordinates

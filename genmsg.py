@@ -147,9 +147,9 @@ class StructField(object):
         """Return insctruction to register option to parser"""
         if self.is_ctype():
             if self.enum is None:
-                choices = "choices=range(%s, %s), " % (self.get_range()[0], self.get_range()[1])
-                metavar = "metavar='[%s - %s]', " % (self.get_range()[0], self.get_range()[1])
-                default = "default=%r, " % (str(self.get_range()[0]))
+                choices = ""
+                metavar = ""
+                default = "default=0, "
             else:
                 choices = "choices=[e.value for e in %s], " % (snake_to_camel(self.enum))
                 metavar = ""
