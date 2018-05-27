@@ -268,7 +268,6 @@ class MessageElt(object):
         out += self.get_fields_py_def(indent=indent, level=level+1)
         out += self.get_struct_fmt_py_def(indent=indent, level=level+1)
         out += self.get_unpack_struct_fmt_py_def(indent=indent, level=level+1)
-        out += self.get_unpack_struct_fmt_py_def_old(indent=indent, level=level+1)
         out += self.get_pack_py_def(indent=indent, level=level+1)
         out += self.get_unpack_py_def(indent=indent, level=level+1)
         out += self.get_helper_def(indent=indent, level=level+1)
@@ -591,39 +590,6 @@ class MessageElt(object):
                         cl -= 1
 
         out += "%sreturn fmt\n\n" % (cl*indent*' ')
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
-    def get_unpack_struct_fmt_py_def_old(self, indent=4, level=0):
-        """Return struct format for unpacking of message containing a complex type"""
-        out = "@staticmethod\n"
-        out += "def get_unpack_struct_fmt_old(data):\n"
-        # Current level of indentation
-        cl = 1
-        # Initialize empty format
-        out += "%sfmt = \"\"\n" % (cl*indent*' ')
-
-        for f in self.fields:
-            opt_va_arg = ""
-            if f.is_ctype() and f.is_array() and not(f.array_len > 0):
-                # For array we need to provide length
-                # computed as len(data)/struct.calcsize(fmt)
-                opt_va_arg = " %% ((len(data)-struct.calcsize(fmt))/%d)" % (struct.calcsize(f.get_fmt()))
-            elif f.is_ctype() and f.is_array() and (f.array_len > 0):
-                # Size of array is known and already embedded by get_field_fmt
-                opt_va_arg = ""
-            elif not f.is_ctype() and not f.is_array():
-                opt_va_arg = " %% (%s.n_fields)" % (snake_to_camel(f.get_base_type()))
-            elif not f.is_ctype() and f.is_array():
-                if f.array_len > 0:
-                    opt_va_arg = " %% (%d)" % (f.array_len)
-            out += "%sfmt += \"%s\"%s\n" % (cl*indent*' ',
-                                            f.get_field_fmt(),
-                                            opt_va_arg)
-        out += "%sreturn fmt\n" % (cl*indent*' ')
-
-        out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
