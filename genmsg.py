@@ -176,14 +176,19 @@ class MessageElt(object):
 
         for f in self.fields:
             array_suffix = ""
-            if "[]" in f.field_type:
-                # TODO: compute size of previous elements and remove it from array size
-                array_suffix = "[255]"
-            if f.is_array() and f.array_len:
-                array_suffix = "[%d]" % (f.array_len)
+            if f.is_ctype():
+                type_str = f.get_base_type()
+            else:
+                type_str = "%s_t" % (f.get_base_type())
+            if f.is_array():
+                if not(f.array_len > 0):
+                    # TODO: compute size of previous elements and remove it from array size
+                    array_suffix = "[255]"
+                else:
+                    array_suffix = "[%d]" % (f.array_len)
 
             out += "%s%s %s%s; /* %s */\n" % (indent*" ",
-                                              f.field_type.replace("[]", ""),
+                                              type_str,
                                               f.name, array_suffix, f.desc)
 
         out += "} %s_t;\n" % (self.name)
@@ -749,8 +754,8 @@ class DefsGen(object):
         self.messages = list()
         self.enums = list()
 
-        self.process_messages_defs()
         self.process_types_defs()
+        self.process_messages_defs()
         self.process_enums_defs()
 
     def process_messages_defs(self):
@@ -778,6 +783,8 @@ class DefsGen(object):
     def get_h_header(self):
         define = "__" + self.filename_prefix.upper() + "_H__"
         s = "#ifndef %s\n" % define
+        s += "#define %s\n\n" % define
+        s += "#include <stdint.h>\n\n"
         s += "#define %s\n\n" % define
         return s
 
@@ -838,15 +845,15 @@ class DefsGen(object):
             with open(h_file, 'w') as h_fd:
                 h_fd.write(self.get_h_header())
 
-                # Write Messages C definitions
-                for m in self.messages:
-                    h_fd.write(m.get_define_msg_id_def())
-                    h_fd.write(m.get_struct_c_def())
-
                 # Write Enums C definitions
                 for e in self.enums:
                     h_fd.write(e.get_enum_c_def())
                 h_fd.write(self.get_h_footer())
+
+                # Write Messages C definitions
+                for m in self.messages:
+                    h_fd.write(m.get_define_msg_id_def())
+                    h_fd.write(m.get_struct_c_def())
 
         if self.py_gen:
             py_file = self.py_dest + "/" + self.filename_prefix + ".py"
