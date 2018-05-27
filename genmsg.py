@@ -143,7 +143,7 @@ class StructField(object):
                 return "*[e.get_fields() for e in self.%s]" % (self.name)
         return "%sself.%s%s" % (prefix, self.name, suffix)
 
-    def get_argparse_decl(self, parser_name, indent=4):
+    def get_argparse_decl(self, parser_name, indent=4, level=0):
         """Return insctruction to register option to parser"""
         if self.is_ctype():
             if self.enum is None:
@@ -162,20 +162,21 @@ class StructField(object):
                     nargs = "nargs='+', "
             else:
                 nargs = "nargs=1, "
-            out = "%s.add_argument('--%s', %s%s%s%shelp='%s')" % (parser_name,
-                                                                  self.name,
-                                                                  nargs,
-                                                                  choices,
-                                                                  metavar,
-                                                                  default,
-                                                                  self.desc)
+            out = "%s.add_argument('--%s', %s%s%s%shelp='%s')\n" % (parser_name,
+                                                                    self.name,
+                                                                    nargs,
+                                                                    choices,
+                                                                    metavar,
+                                                                    default,
+                                                                    self.desc)
         else:
             default = [0xA, 0xB]
-            out = "%s.add_argument('--%s', nargs='*', default=%s, help='%s')" % (parser_name,
-                                                                                 self.name,
-                                                                                 default,
-                                                                                 self.desc)
-
+            out = "%s.add_argument('--%s', nargs='*', default=%s, help='%s')\n" % (parser_name,
+                                                                                   self.name,
+                                                                                   default,
+                                                                                   self.desc)
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
         return out
 
 
@@ -524,7 +525,7 @@ class MessageElt(object):
                                                                        formatter_class_str,
                                                                        self.desc)
         for f in self.fields:
-            out += "%s%s\n" % (indent*' ', f.get_argparse_decl(parser_name))
+            out += "%s" % (f.get_argparse_decl(parser_name, indent=indent, level=1))
         out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
