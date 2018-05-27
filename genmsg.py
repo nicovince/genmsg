@@ -275,18 +275,18 @@ class MessageElt(object):
                     out += "%sfmt += \"%s\"\n" % (cl*indent*' ', f.get_field_fmt())
                 else:
                     out += "%sfmt += \"%s\" %% (len(data))\n" % (cl*indent*' ',
-                                                                f.get_field_fmt())
+                                                                 f.get_field_fmt())
             else:
                 # Complex type
                 if not(f.is_array()):
                     out += "%sfmt += %s.struct_fmt(data)\n" % (cl*indent*' ',
-                                                                   f.get_class_name())
+                                                               f.get_class_name())
                 elif f.is_array() and f.array_len > 0:
                     out += "%sfor e in range(%d):\n" % (cl*indent*' ', f.array_len)
                     cl += 1
 
                     out += "%sfmt += %s.struct_fmt(data)\n" % (cl*indent*' ',
-                                                                   f.get_class_name())
+                                                               f.get_class_name())
                     cl -= 1
                 else:
                     out += "%sfor e in range(len(data)):\n" % (f.array_len)
@@ -331,7 +331,6 @@ class MessageElt(object):
                     cl += 1
                     out += "%sva_args.extend(e.get_fields())\n" % (cl*indent*' ')
                     cl -= 1
-
 
         out += "%sfmt = \"<%%s\" %% (self.struct_fmt(%s))\n" % (cl*indent*" ",
                                                                 array_name)
@@ -503,7 +502,7 @@ class MessageElt(object):
                     out += "%sfmt += \"%s\"\n" % (cl*indent*' ', f.get_field_fmt())
                 else:
                     # Unknown array size
-                    # field format contains %d which needs to be computed at 
+                    # field format contains %d which needs to be computed at
                     # runtime
                     out += "%sif type(data) == bytes:\n" % (cl*indent*' ')
                     cl += 1
@@ -531,8 +530,8 @@ class MessageElt(object):
                         cl += 1
                         arg = "struct.calcsize(%s.get_unpack_struct_fmt(None))" % (f.get_class_name())
                         out += "%sfmt += \"%s\" %% (%s)\n" % (cl*indent*' ',
-                                                             f.get_field_fmt(),
-                                                             arg)
+                                                              f.get_field_fmt(),
+                                                              arg)
                         cl -= 1
 
         out += "%sreturn fmt\n\n" % (cl*indent*' ')
@@ -580,7 +579,7 @@ class MessageElt(object):
 
         out = "@classmethod\n"
         out += "def unpack(cls, data):\n"
-        
+
         if len(self.fields) > 0:
             out += "%smsg_fmt = \"<%%s\" %% (cls.get_unpack_struct_fmt(data))\n" % (indent*' ')
             out += "%sunpacked = struct.unpack(msg_fmt, data)\n" % (indent*' ')
@@ -625,7 +624,7 @@ class MessageElt(object):
             # Convert bytes of complex type to proper object
             for f in self.fields:
                 if f.is_array():
-                    out += "%s%s = list(%s)\n" % (indent *' ', f.name, f.name)
+                    out += "%s%s = list(%s)\n" % (indent*' ', f.name, f.name)
                 if not f.is_ctype():
                     if not(f.is_array()):
                         out += "%s%s = %s.unpack(%s)\n" % (indent*' ', f.name,
@@ -633,9 +632,9 @@ class MessageElt(object):
                                                            f.name)
                     else:
                         out += "%s%s = [%s.unpack(e) for e in %s]\n" % (indent*" ",
-                                                                      f.name,
-                                                                      f.get_class_name(),
-                                                                      f.name)
+                                                                        f.name,
+                                                                        f.get_class_name(),
+                                                                        f.name)
 
         out += "%sreturn %s(" % (indent*' ', snake_to_camel(self.name))
         for f in field_names:
@@ -817,7 +816,7 @@ class DefsGen(object):
         out += "%selse:\n" % (indent_prefix)
         cl += 1
         indent_prefix = cl*indent*' '
-        out += "%sreturn data\n\n" % (indent_prefix)
+        out += "%sreturn data\n\n\n" % (indent_prefix)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -827,7 +826,7 @@ class DefsGen(object):
         out = "def autotest():\n"
         for m in self.messages:
             out += "%s%s.autotest()\n" % (indent*' ', snake_to_camel(m.name))
-        out += "%s\n" % (indent*' ')
+        out += "\n\n"
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
