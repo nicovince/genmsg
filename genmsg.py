@@ -265,6 +265,7 @@ class MessageElt(object):
         out += self.get_str_py_def(indent=indent, level=level+1)
         out += self.get_eq_py_def(indent=indent, level=level+1)
         out += self.get_len_py_def(indent=indent, level=level+1)
+        out += self.get_n_fields_py_def(indent=indent, level=level+1)
         out += self.get_fields_py_def(indent=indent, level=level+1)
         out += self.get_struct_fmt_py_def(indent=indent, level=level+1)
         out += self.get_unpack_struct_fmt_py_def(indent=indent, level=level+1)
@@ -295,6 +296,45 @@ class MessageElt(object):
                                                                                              f.name)
             out += "%sself.%s = %s\n" % (indent*' ', f.name, f.name)
         out += "%sreturn\n\n" % (indent*' ')
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_n_fields_py_def(self, indent=4, level=0):
+        """Return method that compute number of fields in message
+        This includes number of fields in complex type fields
+        """
+        out = "@classmethod\n"
+        out += "def get_n_fields(cls):\n"
+        cl = 1
+        out += "%sn = 0\n" % (cl*indent*' ')
+        out += "%ssuffix = ''\n" % (cl*indent*' ')
+        for f in self.fields:
+            if f.is_ctype():
+                if not(f.is_array()):
+                    out += "%sn += 1 # %s\n" % (cl*indent*' ',
+                                                f.name)
+                else:
+                    if f.array_len > 0:
+                        out += "%sn += %d # %s\n" % (cl*indent*' ',
+                                                     f.array_len,
+                                                     f.name)
+                    else:
+                        out += "%ssuffix = '+' # %s\n" % (cl*indent*' ',
+                                                          f.name)
+                        out += "%sn += 1 # %s\n" % (cl*indent*' ',
+                                                    f.name)
+            else:
+                out += "%s(%s_n, %s_suffix) = %s.get_n_fields()\n" % (cl*indent*' ',
+                                                                      f.name,
+                                                                      f.name,
+                                                                      f.get_class_name())
+                out += "%sn += %s_n\n" % (cl*indent*' ', f.name)
+                out += "%ssuffix = %s_suffix\n" % (cl*indent*' ', f.name)
+
+        out += "%sreturn (n, suffix)\n" % (cl*indent*' ')
+        out += "\n"
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -513,7 +553,7 @@ class MessageElt(object):
         return out
 
     def get_argparse_group_py_def(self, indent=4, level=0):
-        """Return method adding option group to subparser"""
+        """Return method adding option group to subparser for current message"""
         out = "@classmethod\n"
         out += "def get_argparse_group(cls, subparser):\n"
         parser_name = "parser_%s" % (self.name)
@@ -524,7 +564,20 @@ class MessageElt(object):
                                                                        formatter_class_str,
                                                                        self.desc)
         for f in self.fields:
-            out += "%s" % (f.get_argparse_decl(parser_name, indent=indent, level=1))
+            if f.is_ctype():
+                out += "%s" % (f.get_argparse_decl(parser_name, indent=indent, level=1))
+            else:
+                out += self.get_argparse_decl(parser_name, f, indent=indent, level=1)
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_argparse_decl(self, parser_name, field, indent=4, level=0):
+        """Return instruction to register option to parser
+        The fields are given as raw data"""
+        out = "(nargs, suffix) = %s.get_n_fields()\n" % (field.get_class_name())
+        out += "%s.add_argument('--%s', type=int, nargs=nargs)" % (parser_name, field.name,)
         out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
