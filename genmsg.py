@@ -147,28 +147,28 @@ class StructField(object):
         """Return insctruction to register option to parser"""
         if self.is_ctype():
             if self.enum is None:
-                choices = "choices=range(%s, %s)," % (self.get_range()[0], self.get_range()[1])
-                metavar = "metavar='[%s - %s]'," % (self.get_range()[0], self.get_range()[1])
-                default = "default=%r," % (str(self.get_range()[0]))
+                choices = "choices=range(%s, %s), " % (self.get_range()[0], self.get_range()[1])
+                metavar = "metavar='[%s - %s]', " % (self.get_range()[0], self.get_range()[1])
+                default = "default=%r, " % (str(self.get_range()[0]))
             else:
-                choices = "choices=[e.value for e in %s]," % (snake_to_camel(self.enum))
+                choices = "choices=[e.value for e in %s], " % (snake_to_camel(self.enum))
                 metavar = ""
-                default = "default=list(%s)[0].value," % (snake_to_camel(self.enum))
+                default = "default=list(%s)[0].value, " % (snake_to_camel(self.enum))
             # nargs
             if self.is_array():
                 if self.array_len > 0:
-                    nargs = "nargs=%d," % self.array_len
+                    nargs = "nargs=%d, " % self.array_len
                 else:
-                    nargs = "nargs='+',"
+                    nargs = "nargs='+', "
             else:
-                nargs = "nargs=1,"
-            out = "%s.add_argument('--%s', %s %s %s %s help='%s')" % (parser_name,
-                                                                      self.name,
-                                                                      nargs,
-                                                                      choices,
-                                                                      metavar,
-                                                                      default,
-                                                                      self.desc)
+                nargs = "nargs=1, "
+            out = "%s.add_argument('--%s', %s%s%s%shelp='%s')" % (parser_name,
+                                                                  self.name,
+                                                                  nargs,
+                                                                  choices,
+                                                                  metavar,
+                                                                  default,
+                                                                  self.desc)
         else:
             default = [0xA, 0xB]
             out = "%s.add_argument('--%s', nargs='*', default=%s, help='%s')" % (parser_name,
