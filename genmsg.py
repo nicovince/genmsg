@@ -208,12 +208,6 @@ class MessageElt(object):
             out += "#define %s %d\n" % (self.get_define_msg_name(), self.id)
         return out
 
-    def get_struct_py_fmt(self):
-        """return struct format"""
-        # Field names of message
-        field_names = [f.name for f in self.fields]
-        return "<" + ''.join([ctype_to_pack_format(f.field_type) for f in self.fields])
-
     def get_class_py_def(self, indent=4, level=0):
         """Return string with python class declaration"""
         current_level = 0
