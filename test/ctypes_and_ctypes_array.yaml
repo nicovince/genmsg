@@ -1,0 +1,12 @@
+messages:
+- name: temperatures
+  id: 0
+  desc: "Send history of temperatures"
+  fields:
+  - name: unit
+    type: uint8_t
+    desc: "0 for celsius, 1 for farenheit, 2 for kelvin"
+  - name: temps
+    type: uint32_t[5]
+    desc: "last 5 known temperatures"
+

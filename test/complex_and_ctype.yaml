@@ -1,0 +1,23 @@
+types:
+- name: complex
+  desc: "Hold complex data"
+  fields:
+  - name: real
+    type: uint8_t
+    desc: real part of data
+  - name: imaginary
+    type: uint8_t
+    desc: imaginary part of data
+
+messages:
+- name: mul_complex
+  id: 1
+  desc: "multiply complex data"
+  fields:
+  - name: mul_factor
+    type: uint8_t
+    desc: "Multiplier"
+  - name: complex_value
+    type: complex
+    desc: "Complex data"
+

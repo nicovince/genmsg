@@ -1,0 +1,28 @@
+messages:
+- name: temperatures
+  id: 0
+  desc: "Send history of temperatures"
+  fields:
+  - name: temps
+    type: uint32_t[5]
+    desc: "last 5 known temperatures"
+
+- name: debug_str
+  id: 1
+  desc: "debug string"
+  fields:
+  - name: s
+    type: uint8_t[]
+    desc: "Debug message"
+
+- name: dump_int
+  id: 2
+  desc: "dump arbitrary number of int"
+  fields:
+  - name: kind
+    type: uint16_t
+    desc: "Kind of ints"
+  - name: values
+    type: uint32_t[]
+    desc: "Int values"
+
