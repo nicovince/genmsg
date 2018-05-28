@@ -441,8 +441,8 @@ class MessageElt(object):
                 array_name = "self.%s" % f.name
                 break
 
-        out += "%sreturn struct.calcsize(self.struct_fmt(%s))\n\n" % (indent*' ',
-                                                                      array_name)
+        out += "%sreturn struct.calcsize('<%%s' %% self.struct_fmt(%s))\n\n" % (indent*' ',
+                                                                                array_name)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
