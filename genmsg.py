@@ -370,7 +370,7 @@ class MessageElt(object):
                                                                f.get_class_name())
                     cl -= 1
                 else:
-                    out += "%sfor e in range(len(data)):\n" % (f.array_len)
+                    out += "%sfor e in range(len(data)):\n" % (cl*indent*' ')
                     cl += 1
 
                     out += "%sfmt += %s.struct_fmt(data)\n" % (cl*indent*' ',
@@ -535,12 +535,17 @@ class MessageElt(object):
                 if f.is_array():
                     if f.array_len > 0:
                         n = f.array_len
+                        out += "%s%s = [%s.rand() for e in range(%d)]\n" % (indent*' ',
+                                                                            f.name,
+                                                                            snake_to_camel(f.get_base_type()),
+                                                                            n)
                     else:
-                        n = 255/f.get_field_fmt()
-                    out += "%s%s = [%s.rand() for e in range(%d)]\n" % (indent*' ',
-                                                                        f.name,
-                                                                        snake_to_camel(f.get_base_type()),
-                                                                        n)
+                        # TODO: use space left instead of 255
+                        out += "%sn = random.randint(1, int(255/struct.calcsize(%s.struct_fmt(None))))\n" % (indent*' ',
+                                                                                                             f.get_class_name())
+                        out += "%s%s = [%s.rand() for e in range(int(n))]\n" % (indent*' ',
+                                                                                f.name,
+                                                                                f.get_class_name())
                 else:
                     out += "%s%s = %s.rand()\n" % (indent*' ',
                                                    f.name,
@@ -637,12 +642,22 @@ class MessageElt(object):
                 else:
                     # Array of complex type
                     if f.array_len > 0:
+                        # Fixed size
                         out += "%sfor e in range(%d):\n" % (cl*indent*' ', f.array_len)
                         cl += 1
                         arg = "struct.calcsize(%s.get_unpack_struct_fmt(None))" % (f.get_class_name())
                         out += "%sfmt += \"%s\" %% (%s)\n" % (cl*indent*' ',
                                                               f.get_field_fmt(),
                                                               arg)
+                        cl -= 1
+                    else:
+                        # variable size
+                        out += "%sheader_sz = struct.calcsize('<%%s' %% (fmt))\n" % (cl*indent*' ')
+                        out += "%sarray_sz = len(data) - header_sz\n" % (cl*indent*' ')
+                        out += "%selt_sz = struct.calcsize(%s.struct_fmt(None))\n" % (cl*indent*' ', f.get_class_name())
+                        out += "%sfor e in range(int(array_sz/elt_sz)):\n" % (cl*indent*' ')
+                        cl += 1
+                        out += "%sfmt += '%%ds' %% (elt_sz)\n" % (cl*indent*' ')
                         cl -= 1
 
         out += "%sreturn fmt\n\n" % (cl*indent*' ')

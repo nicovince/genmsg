@@ -19,4 +19,15 @@ messages:
     desc: "Multiplier"
   - name: complexes
     type: complex[3]
-    desc: "Complex data"
+    desc: "Three omplex data"
+
+- name: mul_n_complexes
+  id: 1
+  desc: "multiply 3 complex data"
+  fields:
+  - name: mul_factor
+    type: uint8_t
+    desc: "Multiplier"
+  - name: complexes
+    type: complex[]
+    desc: "Complex datas"
