@@ -13,9 +13,13 @@ def main():
     messages.update_subparsers(subparsers)
     args = parser.parse_args()
 
-    print(args)
     if args.autotest:
         messages.autotest()
+    else:
+        m = args.func(args)
+        print(type(m))
+        print(str(m))
+        print(str(m.pack()))
 
 if __name__ == "__main__":
     main()

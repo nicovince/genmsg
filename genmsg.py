@@ -161,14 +161,14 @@ class StructField(object):
                 else:
                     nargs = "nargs='+', "
             else:
-                nargs = "nargs=1, "
-            out = "%s.add_argument('--%s', %s%s%s%shelp='%s')\n" % (parser_name,
-                                                                    self.name,
-                                                                    nargs,
-                                                                    choices,
-                                                                    metavar,
-                                                                    default,
-                                                                    self.desc)
+                nargs = ""
+            out = "%s.add_argument('--%s', type=int, %s%s%s%shelp='%s')\n" % (parser_name,
+                                                                                self.name,
+                                                                                nargs,
+                                                                                choices,
+                                                                                metavar,
+                                                                                default,
+                                                                                self.desc)
         else:
             default = [0xA, 0xB]
             out = "%s.add_argument('--%s', nargs='*', default=%s, help='%s')\n" % (parser_name,
@@ -278,6 +278,7 @@ class MessageElt(object):
         out += self.get_rand_py_def(indent=indent, level=level+1)
         out += self.get_autotest_py_def(indent=indent, level=level+1)
         out += self.get_argparse_group_py_def(indent=indent, level=level+1)
+        out += self.get_args_handler(indent=indent, level=level+1)
 
         out += "\n"
         # indent to requested level
@@ -560,6 +561,22 @@ class MessageElt(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_args_handler(self, indent=4, level=0):
+        """Return method which process args and return object"""
+        out = "@classmethod\n"
+        out += "def args_handler(cls, args):\n"
+        args = ""
+        for f in self.fields:
+            if len(args) > 0:
+                args += ", "
+            args += "%s=args.%s" % (f.name, f.name)
+
+        out += "%sreturn %s(%s)\n" % (indent*' ', self.get_class_name(), args)
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def get_argparse_group_py_def(self, indent=4, level=0):
         """Return method adding option group to subparser for current message"""
         out = "@classmethod\n"
@@ -576,6 +593,9 @@ class MessageElt(object):
                 out += "%s" % (f.get_argparse_decl(parser_name, indent=indent, level=1))
             else:
                 out += self.get_argparse_decl(parser_name, f, indent=indent, level=1)
+        out += "%s%s.set_defaults(func=%s.args_handler)\n" % (indent*' ',
+                                                              parser_name,
+                                                              self.get_class_name())
         out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
