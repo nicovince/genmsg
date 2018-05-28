@@ -210,28 +210,31 @@ class MessageElt(object):
         indent_prefix = level*indent*" "
 
         out = "/* %s */\n" % (self.desc)
-        out += "#pragma pack(push, 1)\n"
-        out += "typedef struct {\n"
+        if len(self.fields) > 0:
+            out += "#pragma pack(push, 1)\n"
+            out += "typedef struct {\n"
 
-        for f in self.fields:
-            array_suffix = ""
-            if f.is_ctype():
-                type_str = f.get_base_type()
-            else:
-                type_str = "%s_t" % (f.get_base_type())
-            if f.is_array():
-                if not(f.array_len > 0):
-                    # TODO: compute size of previous elements and remove it from array size
-                    array_suffix = "[255]"
+            for f in self.fields:
+                array_suffix = ""
+                if f.is_ctype():
+                    type_str = f.get_base_type()
                 else:
-                    array_suffix = "[%d]" % (f.array_len)
+                    type_str = "%s_t" % (f.get_base_type())
+                if f.is_array():
+                    if not(f.array_len > 0):
+                        # TODO: compute size of previous elements and remove it from array size
+                        array_suffix = "[255]"
+                    else:
+                        array_suffix = "[%d]" % (f.array_len)
 
-            out += "%s%s %s%s; /* %s */\n" % (indent*" ",
-                                              type_str,
-                                              f.name, array_suffix, f.desc)
+                out += "%s%s %s%s; /* %s */\n" % (indent*" ",
+                                                  type_str,
+                                                  f.name, array_suffix, f.desc)
 
-        out += "} %s_t;\n" % (self.name)
-        out += "#pragma pack(pop)\n"
+            out += "} %s_t;\n" % (self.name)
+            out += "#pragma pack(pop)\n"
+        else:
+            out += "/* No Fields for this message */\n"
 
         out += "\n"
         # indent to requested level
@@ -477,8 +480,8 @@ class MessageElt(object):
                 array_name = "self.%s" % f.name
                 break
 
-        out += "%sreturn struct.calcsize(self.struct_fmt(%s))\n\n" % (indent*' ',
-                                                                      array_name)
+        out += "%sreturn struct.calcsize('<%%s' %% self.struct_fmt(%s))\n\n" % (indent*' ',
+                                                                                array_name)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
