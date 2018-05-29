@@ -104,10 +104,6 @@ class SlipPayload(object):
                 s += "data: %s\n" % (self.data.hex())
             else:
                 s += "data: %s\n" % (str(self.data))
-        # Update crc and packed data
-        self.pack()
-        s += "crc: %04X\n" % self.crc
-        s += "packed_payload: %s\n" % self.packed_payload.hex()
         return s
 
     def pack(self):

@@ -456,16 +456,16 @@ class MessageElt(object):
         """return __str__ method for message"""
         # Field names of message
         out = "def __str__(self):\n"
-        out += "%sout = \"\"\n" % (indent*' ')
+        out += "%sout = \"%s:\\n\"\n" % (indent*' ', self.name)
         for f in self.fields:
             if f.enum is None:
-                out += "%sout += \"%s: %%s\\n\" %% (str(self.%s))\n" % (indent*' ',
-                                                                        f.name, f.name)
+                out += "%sout += \"  %s: %%s\\n\" %% (str(self.%s))\n" % (indent*' ',
+                                                                          f.name, f.name)
             else:
-                out += "%sout += \"%s: %%s\\n\" %% (%s(self.%s).name)\n" % (indent*' ',
-                                                                            f.name,
-                                                                            snake_to_camel(f.enum),
-                                                                            f.name)
+                out += "%sout += \"  %s: %%s\\n\" %% (%s(self.%s).name)\n" % (indent*' ',
+                                                                              f.name,
+                                                                              snake_to_camel(f.enum),
+                                                                              f.name)
         out += "%sreturn out\n\n" % (indent*' ')
 
         # indent to requested level
@@ -808,7 +808,7 @@ class EnumElt(object):
         max_enum_val = 0
         for e in self.entries:
             out += "%s%s = %d, /* %s */\n" % (indent*" ",
-                                              e.name, e.value, e.desc)
+                                              e.name.upper(), e.value, e.desc)
             max_enum_val = max(max_enum_val, e.value)
         out += "%s%s_END = %d\n" % (indent*" ", self.name, max_enum_val+1)
         out += "} %s_t;\n\n" % (self.name)
@@ -824,7 +824,7 @@ class EnumElt(object):
         out += "class %s(Enum):\n" % (snake_to_camel(self.name))
         max_enum_val = 0
         for e in self.entries:
-            out += "%s%s = %d  # %s\n" % (indent*" ", e.name, e.value, e.desc)
+            out += "%s%s = %d  # %s\n" % (indent*" ", e.name.upper(), e.value, e.desc)
             max_enum_val = max(max_enum_val, e.value)
         out += "%s%s_MAX = %d\n\n" % (indent*" ", self.name.upper(),
                                       max_enum_val+1)
