@@ -987,12 +987,14 @@ class DefsGen(object):
                 # Write Enums C definitions
                 for e in self.enums:
                     h_fd.write(e.get_enum_c_def())
-                h_fd.write(self.get_h_footer())
 
                 # Write Messages C definitions
                 for m in self.messages:
                     h_fd.write(m.get_define_msg_id_def())
                     h_fd.write(m.get_struct_c_def())
+
+                # Finish file with footer
+                h_fd.write(self.get_h_footer())
 
         if self.py_gen:
             py_file = self.py_dest + "/" + self.filename_prefix + ".py"
