@@ -291,15 +291,23 @@ class MessageElt(object):
         field_names = [f.name for f in self.fields]
 
         out = "def __init__(self, %s):\n" % (', '.join(field_names))
+        cl = 1
         # assign fields
         for f in self.fields:
-            if f.enum is not None:
-                out += "%sassert %s in [c.value for c in %s], \"Invalid value for %s\"\n" % (indent*' ',
+            if f.enum is not None and not(f.is_array()):
+                out += "%sassert %s in [c.value for c in %s], \"Invalid value for %s\"\n" % (cl*indent*' ',
                                                                                              f.name,
                                                                                              snake_to_camel(f.enum),
                                                                                              f.name)
-            out += "%sself.%s = %s\n" % (indent*' ', f.name, f.name)
-        out += "%sreturn\n\n" % (indent*' ')
+            elif f.enum is not None and f.is_array():
+                out += "%sfor v in %s:\n" % (cl*indent*' ', f.name)
+                cl += 1
+                out += "%sassert v in [c.value for c in %s], \"Invalid value for %s\"\n" % (cl*indent*' ',
+                                                                                            snake_to_camel(f.enum),
+                                                                                            f.name)
+                cl -= 1
+            out += "%sself.%s = %s\n" % (cl*indent*' ', f.name, f.name)
+        out += "%sreturn\n\n" % (cl*indent*' ')
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -462,10 +470,16 @@ class MessageElt(object):
                 out += "%sout += \"  %s: %%s\\n\" %% (str(self.%s))\n" % (indent*' ',
                                                                           f.name, f.name)
             else:
-                out += "%sout += \"  %s: %%s\\n\" %% (%s(self.%s).name)\n" % (indent*' ',
-                                                                              f.name,
-                                                                              snake_to_camel(f.enum),
-                                                                              f.name)
+                if not(f.is_array()):
+                    out += "%sout += \"  %s: %%s\\n\" %% (%s(self.%s).name)\n" % (indent*' ',
+                                                                                  f.name,
+                                                                                  snake_to_camel(f.enum),
+                                                                                  f.name)
+                else:
+                    out += "%sl = [%s(v).name for v in self.%s]\n" % (indent*' ',
+                                                                      snake_to_camel(f.enum),
+                                                                      f.name)
+                    out += "%sout += \"  %s: %%s\\n\" %% (l)\n" % (indent*' ', f.name)
         out += "%sreturn out\n\n" % (indent*' ')
 
         # indent to requested level
@@ -832,6 +846,9 @@ class EnumElt(object):
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
+
+    def get_class_name(self):
+        return snake_to_camel(self.name)
 
     def check_enum(self):
         """Verify enum has only one instance of each name and value"""
