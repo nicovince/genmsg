@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from enum import Enum
 import argparse
+import argcomplete
 import array
 import struct
 import threading
@@ -212,6 +213,8 @@ def main():
     # Add subparsers
     subparsers = parser.add_subparsers(help='Messages subparsers', dest='msg_parser')
     messages.update_subparsers(subparsers)
+    # autocompletion
+    argcomplete.autocomplete(parser)
     # Parse args
     args = parser.parse_args()
 
