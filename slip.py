@@ -186,6 +186,14 @@ class SlipReader(threading.Thread):
                     return
 
 
+def top_level_parser(args):
+    if args.print_msg is not None:
+        messages.msg_map[args.print_msg].helper()
+        sys.exit(0)
+
+    payload = SlipPayload(args.pid, args.seq, bytes(args.data))
+    return payload
+
 def main():
     parser = argparse.ArgumentParser(description="Send Slip message",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -201,20 +209,26 @@ def main():
                         default=bytes([]))
     parser.add_argument("--print-msg", type=str, default=None,
                         help="Display message format")
+    # Add subparsers
+    subparsers = parser.add_subparsers(help='Messages subparsers', dest='msg_parser')
+    messages.update_subparsers(subparsers)
+    # Parse args
     args = parser.parse_args()
 
-    if args.print_msg is not None:
-        messages.msg_map[args.print_msg].helper()
-        sys.exit(0)
 
-    payload = SlipPayload(args.pid, args.seq, bytes(args.data))
+    if args.msg_parser is None:
+        payload = top_level_parser(args)
+    else:
+        msg = args.func(args)
+        payload = SlipPayload(msg.msg_id, args.seq, msg.pack())
     print(payload)
+
     tx_buf = Slip.encode(payload.pack())
     fd = open(args.slip_interface, "rb")
     fd = serial.Serial(port=args.slip_interface, baudrate=9600)
 
     # Start reader thread
-    slip_reader = SlipReader(fd, args.pid | 0x80)
+    slip_reader = SlipReader(fd, payload.pid | 0x80)
     slip_reader.start()
 
     # Send data
