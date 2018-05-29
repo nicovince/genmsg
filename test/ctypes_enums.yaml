@@ -28,7 +28,6 @@ messages:
     type: uint8_t
     enum: color
     desc: "foreground color"
-
 - name: version
   id: 1
   desc: "Version number"
@@ -36,3 +35,21 @@ messages:
   - name: version_number
     type: uint8_t
     desc: "Version"
+- name: flag
+  id: 2
+  desc: "Flag colors"
+  fields:
+  - name: colors
+    type: uint8_t[]
+    enum: color
+    desc: "Colors of a flag"
+
+- name: rainbow
+  id: 3
+  desc: "rainbow colors"
+  fields:
+  - name: colors
+    type: uint8_t[7]
+    enum: color
+    desc: "Colors of a rainbow"
+

@@ -527,15 +527,15 @@ class MessageElt(object):
                 else:
                     population_str = "list([c.value for c in %s][:-1])" % (snake_to_camel(f.enum))
                 if f.is_array() and not(f.array_len > 0):
-                    out += "%s%s = random.sample(%s, random.randint(0, %d))\n" % (indent*' ',
-                                                                                  f.name,
-                                                                                  population_str,
-                                                                                  256-byte_offset)
+                    out += "%s%s = [random.choice(%s) for e in range(random.randint(0, %d))]\n" % (indent*' ',
+                                                                                                   f.name,
+                                                                                                   population_str,
+                                                                                                   256-byte_offset)
                 elif f.is_array() and (f.array_len > 0):
-                    out += "%s%s = random.sample(%s, %d)\n" % (indent*' ',
-                                                               f.name,
-                                                               population_str,
-                                                               f.array_len)
+                    out += "%s%s = [random.choice(%s) for e in range(%d)]\n" % (indent*' ',
+                                                                                f.name,
+                                                                                population_str,
+                                                                                f.array_len)
                 else:
                     if f.enum is None:
                         out += "%s%s = random.randint(*%s)\n" % (indent*' ',
