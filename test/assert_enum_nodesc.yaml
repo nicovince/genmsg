@@ -1,0 +1,54 @@
+enums:
+- name: color
+  entries:
+  - entry: red
+    desc: "red color"
+    value: 0
+  - entry: green
+    desc: "green color"
+    value: 1
+  - entry: blue
+    desc: "blue color"
+    value: 2
+
+messages:
+- name: font_cfg
+  id: 0
+  desc: "Font configuration"
+  fields:
+  - name: pt_size
+    type: uint8_t
+    desc: "Font size"
+  - name: background_color
+    type: uint8_t
+    enum: color
+    desc: "background color"
+  - name: foreground_color
+    type: uint8_t
+    enum: color
+    desc: "foreground color"
+- name: version
+  id: 1
+  desc: "Version number"
+  fields:
+  - name: version_number
+    type: uint8_t
+    desc: "Version"
+- name: flag
+  id: 2
+  desc: "Flag colors"
+  fields:
+  - name: colors
+    type: uint8_t[]
+    enum: color
+    desc: "Colors of a flag"
+
+- name: rainbow
+  id: 3
+  desc: "rainbow colors"
+  fields:
+  - name: colors
+    type: uint8_t[7]
+    enum: color
+    desc: "Colors of a rainbow"
+

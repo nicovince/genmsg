@@ -188,6 +188,9 @@ class MessageElt(object):
             self.id = message["id"]
         else:
             self.id = None
+
+        assert "name" in message.keys(), "message is missing name"
+        assert "desc" in message.keys(), "message %s is missing desc" % (message["name"])
         self.name = message["name"]
         self.desc = message["desc"]
 
@@ -195,6 +198,11 @@ class MessageElt(object):
         if "fields" in message.keys():
             fields = message["fields"]
             for f in fields:
+                assert "name" in f.keys(), "Field of %s is missing name" % self.name
+                assert "type" in f.keys(), "Field %s of %s is missing type" % (f["name"],
+                                                                               self.name)
+                assert "desc" in f.keys(), "Field %s of %s is missing desc" % (f["name"],
+                                                                               self.name)
                 struct_field = StructField(f["name"], f["type"], f["desc"])
                 if "enum" in f:
                     struct_field.attach_enum(f["enum"])
@@ -808,10 +816,20 @@ class EnumElt(object):
     """Enumeration object created from dictionary definition"""
     def __init__(self, enum):
         self.enum = enum
+        assert "name" in enum.keys(), "Enum is missing name"
+        assert "desc" in enum.keys(), "Enum %s is missing desc" % (enum["name"])
+        assert "entries" in enum.keys(), "Enum %s is missing entries" % (enum["name"])
         self.name = enum["name"]
         self.desc = enum["desc"]
         entries = enum["entries"]
-        self.entries = [EnumEntry(e["entry"], e["value"], e["desc"]) for e in entries]
+        self.entries = list()
+        for e in entries:
+            assert "entry" in e.keys(), "Enum %s is missing entry name" % (self.name)
+            assert "desc" in e.keys(), "Enum %s entry %s is missing desc" % (self.name,
+                                                                             e["entry"])
+            assert "value" in e.keys(), "Enum %s entry %s is missing entry value" % (self.name,
+                                                                                     e["name"])
+            self.entries.append(EnumEntry(e["entry"], e["value"], e["desc"]))
         self.check_enum()
 
     def get_enum_c_def(self, indent=4, level=0):
@@ -888,6 +906,15 @@ class DefsGen(object):
         for m in self.defs["messages"]:
             msg_elt = MessageElt(m)
             self.messages.append(msg_elt)
+        # Check unicity of messages names
+        msg_names = [m.name for m in self.messages]
+        dups = set([n for n in msg_names if msg_names.count(n) > 1])
+        assert len(msg_names) == len(set(msg_names)), "found %s message(s) duplicated" % (', '.join(dups))
+
+        # Check unicity of messages names
+        msg_ids = [m.id for m in self.messages]
+        dups = set([n for n in msg_ids if msg_ids.count(n) > 1])
+        assert len(msg_ids) == len(set(msg_ids)), "found message id %r duplicated" % (dups)
 
     def process_types_defs(self):
         """Read types definitions"""
