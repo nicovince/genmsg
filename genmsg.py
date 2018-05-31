@@ -5,31 +5,6 @@ import argparse
 import struct
 
 
-ctype_to_struct_fmt = dict()
-ctype_to_struct_fmt["uint8_t"] = "B"
-ctype_to_struct_fmt["int8_t"] = "b"
-ctype_to_struct_fmt["uint16_t"] = "H"
-ctype_to_struct_fmt["int16_t"] = "h"
-ctype_to_struct_fmt["uint32_t"] = "I"
-ctype_to_struct_fmt["int32_t"] = "i"
-ctype_to_struct_fmt["uint8_t[]"] = "%dB"
-ctype_to_struct_fmt["int8_t[]"] = "%db"
-ctype_to_struct_fmt["uint16_t[]"] = "%dH"
-ctype_to_struct_fmt["int16_t[]"] = "%dh"
-ctype_to_struct_fmt["uint32_t[]"] = "%dI"
-ctype_to_struct_fmt["int32_t[]"] = "%di"
-
-
-def ctype_to_pack_format(t):
-    """Return struct pack/unpack format from c type"""
-    if t in ctype_to_struct_fmt.keys():
-        return ctype_to_struct_fmt[t]
-
-
-def is_ctype(t):
-    return t in ctype_to_struct_fmt.keys()
-
-
 def shift_indent_level(s, indent, level):
     indent_prefix = level*indent*" "
     # indent to requested level
@@ -50,6 +25,20 @@ class StructField(object):
     ctype_range["int16_t"] = [-(2**15), 2**15-1]
     ctype_range["uint32_t"] = [0, 2**32-1]
     ctype_range["int32_t"] = [-(2**31), 2**31-1]
+
+    ctype_to_struct_fmt = dict()
+    ctype_to_struct_fmt["uint8_t"] = "B"
+    ctype_to_struct_fmt["int8_t"] = "b"
+    ctype_to_struct_fmt["uint16_t"] = "H"
+    ctype_to_struct_fmt["int16_t"] = "h"
+    ctype_to_struct_fmt["uint32_t"] = "I"
+    ctype_to_struct_fmt["int32_t"] = "i"
+    ctype_to_struct_fmt["uint8_t[]"] = "%dB"
+    ctype_to_struct_fmt["int8_t[]"] = "%db"
+    ctype_to_struct_fmt["uint16_t[]"] = "%dH"
+    ctype_to_struct_fmt["int16_t[]"] = "%dh"
+    ctype_to_struct_fmt["uint32_t[]"] = "%dI"
+    ctype_to_struct_fmt["int32_t[]"] = "%di"
 
     array_re = re.compile(r"^\w+\[(\d*)\]")
 
@@ -83,7 +72,7 @@ class StructField(object):
         return re.sub("\[\d*\]", "", self.field_type)
 
     def is_ctype(self):
-        return self.get_base_type() in ctype_to_struct_fmt.keys()
+        return self.get_base_type() in self.ctype_to_struct_fmt.keys()
 
     def get_range(self):
         """return tuple with min/max value"""
@@ -105,7 +94,7 @@ class StructField(object):
         This includes leading %d if the field is an array or complex type
         """
         if self.is_ctype():
-            fmt = ctype_to_struct_fmt[self.get_base_type()]
+            fmt = self.ctype_to_struct_fmt[self.get_base_type()]
             if not self.is_array():
                 out = "%s" % (fmt)
             else:
@@ -123,7 +112,7 @@ class StructField(object):
         if self.is_ctype():
             # Get root type
             t = self.get_base_type()
-            out = ctype_to_struct_fmt[t]
+            out = self.ctype_to_struct_fmt[t]
         else:
             out = "s"
         return out
