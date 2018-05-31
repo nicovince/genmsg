@@ -97,7 +97,7 @@ class SlipPayload(object):
 
     def __str__(self):
         s = ""
-        s += "pid: %02X\n" % (self.pid)
+        s += "pid: 0x%02X\n" % (self.pid)
         s += "seq: %d\n" % (self.seq)
         s += "len: %d\n" % (len(self.data))
         if self.data is not None and len(self.data) > 0:
