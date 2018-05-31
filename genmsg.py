@@ -145,15 +145,22 @@ class StructField(object):
 
     def get_argparse_decl(self, parser_name, indent=4, level=0):
         """Return insctruction to register option to parser"""
+        help_str = "help='%s'" % self.desc
+        out = ""
         if self.is_ctype():
             if self.enum is None:
                 choices = ""
                 metavar = ""
                 default = "default=0, "
             else:
-                choices = "choices=[e.value for e in %s], " % (snake_to_camel(self.enum))
+                choices = "choices=[e.value for e in %s][:-1], " % (snake_to_camel(self.enum))
                 metavar = ""
                 default = "default=list(%s)[0].value, " % (snake_to_camel(self.enum))
+                out += "enum_help = list()\n"
+                out += "for e in [e.value for e in %s][:-1]:\n" % (snake_to_camel(self.enum))
+                out += "%senum_help.append(\"%%d: %%s\" %% (e, %s(e)))\n" % (indent*' ', snake_to_camel(self.enum))
+
+                help_str = "help='%s (%%s)' %% (' - '.join(enum_help))" % (self.desc)
             # nargs
             if self.is_array():
                 if self.array_len > 0:
@@ -162,19 +169,20 @@ class StructField(object):
                     nargs = "nargs='+', "
             else:
                 nargs = ""
-            out = "%s.add_argument('--%s', type=int, %s%s%s%shelp='%s')\n" % (parser_name,
-                                                                                self.name,
-                                                                                nargs,
-                                                                                choices,
-                                                                                metavar,
-                                                                                default,
-                                                                                self.desc)
+            out += "%s.add_argument('--%s', type=int, %s%s%s%s%s)\n" % (parser_name,
+                                                                        self.name,
+                                                                        nargs,
+                                                                        choices,
+                                                                        metavar,
+                                                                        default,
+                                                                        help_str)
         else:
+            # TODO Fix default
             default = [0xA, 0xB]
-            out = "%s.add_argument('--%s', nargs='*', default=%s, help='%s')\n" % (parser_name,
-                                                                                   self.name,
-                                                                                   default,
-                                                                                   self.desc)
+            out += "%s.add_argument('--%s', nargs='*', default=%s, %s)\n" % (parser_name,
+                                                                             self.name,
+                                                                             default,
+                                                                             help_str)
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
