@@ -19,7 +19,7 @@ messages:
     desc: "Complex data"
 
 - name: two_complex
-  id: 1
+  id: 2
   desc: "two complex data"
   fields:
   - name: c1

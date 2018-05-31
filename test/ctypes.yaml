@@ -22,7 +22,7 @@ messages:
     desc: "y coordinates"
 
 - name: polar_coordinates
-  id: 1
+  id: 2
   desc: "Send ro,teta coordinates"
   fields:
   - name: ro
@@ -33,7 +33,7 @@ messages:
     desc: "y coordinates"
 
 - name: width
-  id: 0
+  id: 3
   desc: "Width of whathever"
   fields:
   - name: width

@@ -1,0 +1,11 @@
+messages:
+- name: version
+  id: 0
+  desc: "Send Version number"
+  fields:
+  - name: major
+    desc: "major version number"
+  - name: minor
+    type: uint8_t
+    desc: "minor version number"
+
