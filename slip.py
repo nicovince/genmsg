@@ -186,6 +186,31 @@ class SlipReader(threading.Thread):
                 if (self.stop_on_msg_id is None) or (msg.pid == self.stop_on_msg_id):
                     return
 
+def slip_transaction(serial_fd, slip_msg, debug=False):
+    """Send slip payload and return list of slip message received
+    Return list of incoming messages until message pid reply has been received
+    """
+    slip = Slip()
+    if debug:
+        print("Sending Message:")
+        print(slip_msg)
+    tx_buf = slip.encode(slip_msg.pack())
+    serial_fd.write(tx_buf)
+    l = list()
+    while True:
+        b = serial_fd.read(1)
+        rx_buf = slip.decode(b)
+        if rx_buf is not None:
+            rx_slip_msg = SlipPayload.get_msg(rx_buf)
+            l.append(rx_slip_msg)
+
+            if debug:
+                print("Received Message:")
+                print(rx_slip_msg)
+
+            if rx_slip_msg.pid == (slip_msg.pid | 0x80):
+                # Reply have the msb set to 1
+                return l
 
 def top_level_parser(args):
     if args.print_msg is not None:
