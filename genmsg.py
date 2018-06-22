@@ -142,11 +142,11 @@ class StructField(object):
                 metavar = ""
                 default = "default=0, "
             else:
-                choices = "choices=[e.value for e in %s][:-1], " % (snake_to_camel(self.enum))
+                choices = "choices=[e.value for e in %s], " % (snake_to_camel(self.enum))
                 metavar = ""
                 default = "default=list(%s)[0].value, " % (snake_to_camel(self.enum))
                 out += "enum_help = list()\n"
-                out += "for e in [e.value for e in %s][:-1]:\n" % (snake_to_camel(self.enum))
+                out += "for e in [e.value for e in %s]:\n" % (snake_to_camel(self.enum))
                 out += "%senum_help.append(\"%%d: %%s\" %% (e, %s(e)))\n" % (indent*' ', snake_to_camel(self.enum))
 
                 help_str = "help='%s (%%s)' %% (' - '.join(enum_help))" % (self.desc)
@@ -530,7 +530,7 @@ class MessageElt(object):
                 if f.enum is None:
                     population_str = "range(%d, %d)" % (f.get_range()[0], f.get_range()[1])
                 else:
-                    population_str = "list([c.value for c in %s][:-1])" % (snake_to_camel(f.enum))
+                    population_str = "list([c.value for c in %s])" % (snake_to_camel(f.enum))
                 if f.is_array() and not(f.array_len > 0):
                     out += "%s%s = [random.choice(%s) for e in range(random.randint(0, %d))]\n" % (indent*' ',
                                                                                                    f.name,
@@ -851,12 +851,8 @@ class EnumElt(object):
         indent_prefix = level*indent*" "
         out = "# %s\n" % (self.desc)
         out += "class %s(Enum):\n" % (snake_to_camel(self.name))
-        max_enum_val = 0
         for e in self.entries:
             out += "%s%s = %d  # %s\n" % (indent*" ", e.name.upper(), e.value, e.desc)
-            max_enum_val = max(max_enum_val, e.value)
-        out += "%s%s_MAX = %d\n\n" % (indent*" ", self.name.upper(),
-                                      max_enum_val+1)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
