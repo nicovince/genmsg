@@ -141,13 +141,15 @@ class StructField(object):
                 choices = ""
                 metavar = ""
                 default = "default=0, "
+                argtype = "type=int, "
             else:
-                choices = "choices=[e.value for e in %s], " % (snake_to_camel(self.enum))
-                metavar = ""
+                choices = "choices=[f(x) for x in %s for f in (lambda x: x, lambda x: x.value)], " % (snake_to_camel(self.enum))
+                metavar = "metavar=[f(x) for x in %s for f in (lambda x: x.name.lower(), lambda x: x.value)], " % (snake_to_camel(self.enum))
                 default = "default=list(%s)[0].value, " % (snake_to_camel(self.enum))
+                argtype = "type=%s.%s_type, " % (snake_to_camel(self.enum), self.enum)
                 out += "enum_help = list()\n"
                 out += "for e in [e.value for e in %s]:\n" % (snake_to_camel(self.enum))
-                out += "%senum_help.append(\"%%d: %%s\" %% (e, %s(e)))\n" % (indent*' ', snake_to_camel(self.enum))
+                out += "%senum_help.append(\"%%d: %%s\" %% (e, %s(e).name.lower()))\n" % (indent*' ', snake_to_camel(self.enum))
 
                 help_str = "help='%s (%%s)' %% (' - '.join(enum_help))" % (self.desc)
             # nargs
@@ -158,13 +160,14 @@ class StructField(object):
                     nargs = "nargs='+', "
             else:
                 nargs = ""
-            out += "%s.add_argument('--%s', type=int, %s%s%s%s%s)\n" % (parser_name,
-                                                                        self.name,
-                                                                        nargs,
-                                                                        choices,
-                                                                        metavar,
-                                                                        default,
-                                                                        help_str)
+            out += "%s.add_argument('--%s', %s%s%s%s%s%s)\n" % (parser_name,
+                                                                self.name,
+                                                                argtype,
+                                                                nargs,
+                                                                choices,
+                                                                metavar,
+                                                                default,
+                                                                help_str)
         else:
             # TODO Fix default
             default = [0xA, 0xB]
@@ -300,16 +303,17 @@ class MessageElt(object):
         # assign fields
         for f in self.fields:
             if f.enum is not None and not(f.is_array()):
-                out += "%sassert %s in [c.value for c in %s], \"Invalid value for %s\"\n" % (cl*indent*' ',
-                                                                                             f.name,
-                                                                                             snake_to_camel(f.enum),
-                                                                                             f.name)
+                out += "%sassert %s in %s, \"Invalid value for %s (%%s)\" %% (%s)\n" % (cl*indent*' ',
+                                                                                        f.name,
+                                                                                        snake_to_camel(f.enum),
+                                                                                        f.name,
+                                                                                        f.name)
             elif f.enum is not None and f.is_array():
                 out += "%sfor v in %s:\n" % (cl*indent*' ', f.name)
                 cl += 1
-                out += "%sassert v in [c.value for c in %s], \"Invalid value for %s\"\n" % (cl*indent*' ',
-                                                                                            snake_to_camel(f.enum),
-                                                                                            f.name)
+                out += "%sassert v in %s, \"Invalid value for %s (%%s)\" %% (%s)\n" % (cl*indent*' ',
+                                                                                       snake_to_camel(f.enum),
+                                                                                       f.name, f.name)
                 cl -= 1
             out += "%sself.%s = %s\n" % (cl*indent*' ', f.name, f.name)
         out += "%sreturn\n\n" % (cl*indent*' ')
@@ -413,10 +417,16 @@ class MessageElt(object):
         out += "%sva_args = list()\n" % (cl*indent*' ')
         for f in self.fields:
             if f.is_ctype():
+                enum_suffix = ""
+                if f.enum is not None:
+                    enum_suffix = ".value"
                 if not(f.is_array()):
-                    out += "%sva_args.append(self.%s)\n" % (cl*indent*' ', f.name)
+                    out += "%sva_args.append(self.%s%s)\n" % (cl*indent*' ', f.name,
+                                                              enum_suffix)
                 else:
-                    out += "%sva_args.extend(self.%s)\n" % (cl*indent*' ', f.name)
+                    out += "%sva_args.extend([e%s for e in self.%s])\n" % (cl*indent*' ',
+                                                                           enum_suffix,
+                                                                           f.name)
             else:
                 if not(f.is_array()):
                     out += "%sva_args.extend(self.%s.get_fields())\n" % (cl*indent*' ',
@@ -530,7 +540,7 @@ class MessageElt(object):
                 if f.enum is None:
                     population_str = "range(%d, %d)" % (f.get_range()[0], f.get_range()[1])
                 else:
-                    population_str = "list([c.value for c in %s])" % (snake_to_camel(f.enum))
+                    population_str = "list(%s)" % (snake_to_camel(f.enum))
                 if f.is_array() and not(f.array_len > 0):
                     out += "%s%s = [random.choice(%s) for e in range(random.randint(0, %d))]\n" % (indent*' ',
                                                                                                    f.name,
@@ -721,7 +731,12 @@ class MessageElt(object):
             for f in self.fields:
                 if not(f.is_array()):
                     if f.is_ctype():
-                        out += "%s%s = unpacked[%d]\n" % (indent*' ', f.name, offset)
+                        if f.enum is None:
+                            out += "%s%s = unpacked[%d]\n" % (indent*' ', f.name, offset)
+                        else:
+                            out += "%s%s = %s(unpacked[%d])\n" % (indent*' ', f.name,
+                                                                  snake_to_camel(f.enum),
+                                                                  offset)
                         offset += 1
                     else:
                         out += "%s%s = unpacked[%d]\n" % (indent*' ', f.name, offset)
@@ -740,6 +755,10 @@ class MessageElt(object):
                             # Such arrays *must* be at the end of the message definition,
                             # therefore we know there is nothing after.
                             out += "%s%s = unpacked[%d:]\n" % (indent*' ', f.name, offset)
+                        if f.enum is not None:
+                            out += "%s%s = [%s(e) for e in %s]\n" % (indent*' ', f.name,
+                                                                     snake_to_camel(f.enum),
+                                                                     f.name)
                     else:
                         # Complex type
                         if f.array_len > 0:
@@ -831,7 +850,6 @@ class EnumElt(object):
 
     def get_enum_c_def(self, indent=4, level=0):
         """Return string with C enum declaration"""
-        indent_prefix = level*indent*" "
         out = "/* %s */\n" % (self.desc)
         out += "typedef enum %s_e {\n" % (self.name)
         max_enum_val = 0
@@ -848,11 +866,13 @@ class EnumElt(object):
 
     def get_enum_py_def(self, indent=4, level=0):
         """Return string with python enum declaration"""
-        indent_prefix = level*indent*" "
         out = "# %s\n" % (self.desc)
         out += "class %s(Enum):\n" % (snake_to_camel(self.name))
         for e in self.entries:
             out += "%s%s = %d  # %s\n" % (indent*" ", e.name.upper(), e.value, e.desc)
+
+        out += "\n"
+        out += self.get_enum_type_py_def(indent=indent, level=level+1)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -860,6 +880,40 @@ class EnumElt(object):
 
     def get_class_name(self):
         return snake_to_camel(self.name)
+
+    def get_enum_type_py_def(self, indent=4, level=0):
+        """Generate function used for 'type' parameter durin argparse declaration"""
+        out = "def %s_type(s):\n" % (self.name)
+        cl = level + 1
+        out += "%stry:\n" % (cl*indent*' ')
+        cl += 1
+        out += "%sif s.isdecimal():\n" % (cl*indent*' ')
+        # arg is decimal
+        cl += 1
+        out += "%sreturn %s(int(s))\n" % (cl*indent*' ', self.get_class_name())
+        cl -= 1
+        out += "%selse:\n" % (cl*indent*' ')
+        # Arg is enum string
+        cl += 1
+        out += "%s return %s[s.upper()]\n" % (cl*indent*' ', self.get_class_name())
+        cl -= 1
+
+        # Error handling
+        cl -= 1
+        out += "%sexcept KeyError:\n" % (cl*indent*' ')
+        cl += 1
+        out += "%sraise argparse.ArgumentError()\n" % (cl*indent*' ')
+        cl -= 1
+        out += "%sexcept ValueError:\n" % (cl*indent*' ')
+        cl += 1
+        out += "%sraise argparse.ArgumentError()\n" % (cl*indent*' ')
+        cl -= 1
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
 
     def check_enum(self):
         """Verify enum has only one instance of each name and value"""
