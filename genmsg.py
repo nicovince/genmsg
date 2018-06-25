@@ -872,6 +872,7 @@ class EnumElt(object):
             out += "%s%s = %d  # %s\n" % (indent*" ", e.name.upper(), e.value, e.desc)
 
         out += "\n"
+        out += self.get_enum_eq_py_def(indent=indent, level=level+1)
         out += self.get_enum_type_py_def(indent=indent, level=level+1)
 
         # indent to requested level
@@ -880,6 +881,19 @@ class EnumElt(object):
 
     def get_class_name(self):
         return snake_to_camel(self.name)
+
+    def get_enum_eq_py_def(self, indent=4, level=0):
+        """Return function which compares enum"""
+        out = "def __eq__(self, other):\n"
+        out += "%s# This is required because enum imported from different location fails equality tests\n" % (indent*' ')
+        out += "%s# First test the two object have the same class name\n" % (indent*' ')
+        out += "%sassert other.__class__.__name__ == self.__class__.__name__\n" % (indent*' ')
+        out += "%s# Then check values\n" % (indent*' ')
+        out += "%sreturn self.value == other.value\n" % (indent*' ')
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
 
     def get_enum_type_py_def(self, indent=4, level=0):
         """Generate function used for 'type' parameter durin argparse declaration"""
