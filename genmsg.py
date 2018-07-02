@@ -884,12 +884,19 @@ class EnumElt(object):
 
     def get_enum_eq_py_def(self, indent=4, level=0):
         """Return function which compares enum"""
+        cl = 0
         out = "def __eq__(self, other):\n"
-        out += "%s# This is required because enum imported from different location fails equality tests\n" % (indent*' ')
-        out += "%s# First test the two object have the same class name\n" % (indent*' ')
-        out += "%sassert other.__class__.__name__ == self.__class__.__name__\n" % (indent*' ')
-        out += "%s# Then check values\n" % (indent*' ')
-        out += "%sreturn self.value == other.value\n" % (indent*' ')
+        cl += 1
+        out += "%s# This is required because enum imported from different location fails equality tests\n" % (cl*indent*' ')
+        out += "%s# First test the two object have the same class name\n" % (cl*indent*' ')
+        out += "%sif other.__class__.__name__ == self.__class__.__name__:\n" % (cl*indent*' ')
+        cl += 1
+        out += "%s# Then check values\n" % (cl*indent*' ')
+        out += "%sreturn self.value == other.value\n" % (cl*indent*' ')
+        cl -= 1
+        out += "%selse:\n" % (cl*indent*' ')
+        cl += 1
+        out += "%sreturn False\n" % (cl*indent*' ')
         out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
