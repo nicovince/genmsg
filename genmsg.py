@@ -874,6 +874,7 @@ class EnumElt(object):
         out += "\n"
         out += self.get_enum_eq_py_def(indent=indent, level=level+1)
         out += self.get_enum_type_py_def(indent=indent, level=level+1)
+        out += self.get_enum_hash_py_def(indent=indent, level=level+1)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -904,8 +905,9 @@ class EnumElt(object):
 
     def get_enum_type_py_def(self, indent=4, level=0):
         """Generate function used for 'type' parameter durin argparse declaration"""
+        cl = 0
         out = "def %s_type(s):\n" % (self.name)
-        cl = level + 1
+        cl += 1
         out += "%stry:\n" % (cl*indent*' ')
         cl += 1
         out += "%sif s.isdecimal():\n" % (cl*indent*' ')
@@ -935,6 +937,15 @@ class EnumElt(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_enum_hash_py_def(self, indent=4, level=0):
+        """Generate __hash__ function for enum to be able to use enum in dictionaries"""
+        cl = 0
+        out = "def __hash__(self):\n"
+        cl += 1
+        out += "%sreturn hash((self.name, self.value))\n\n" % (cl*indent*' ')
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
 
     def check_enum(self):
         """Verify enum has only one instance of each name and value"""
