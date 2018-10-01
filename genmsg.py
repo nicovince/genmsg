@@ -904,10 +904,12 @@ class EnumElt(object):
         return out
 
     def get_enum_type_py_def(self, indent=4, level=0):
-        """Generate function used for 'type' parameter durin argparse declaration"""
+        """Generate function used for 'type' parameter during argparse declaration"""
         cl = 0
         out = "def %s_type(s):\n" % (self.name)
         cl += 1
+        out += "%s\"\"\"Return Enum object from string representation\n\n" % (cl*indent*' ')
+        out += "%sUsed in type parameter of argparse declaration\"\"\"\n" % (cl*indent*' ')
         out += "%stry:\n" % (cl*indent*' ')
         cl += 1
         out += "%sif s.isdecimal():\n" % (cl*indent*' ')
@@ -918,7 +920,7 @@ class EnumElt(object):
         out += "%selse:\n" % (cl*indent*' ')
         # Arg is enum string
         cl += 1
-        out += "%s return %s[s.upper()]\n" % (cl*indent*' ', self.get_class_name())
+        out += "%sreturn %s[s.upper()]\n" % (cl*indent*' ', self.get_class_name())
         cl -= 1
 
         # Error handling
