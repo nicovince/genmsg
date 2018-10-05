@@ -1,5 +1,6 @@
 bitfields:
 - name: boat_status
+  desc: "Boat Status Bitfield"
   bits:
   - name: sinked
     position: 0
@@ -10,6 +11,7 @@ bitfields:
     desc: "Length of the boat in meters [0 - 127]"
 
 - name: cat_status
+  desc: "Cat Status Bitfield"
   bits:
   - name: sleeping
     position: 0

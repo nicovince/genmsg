@@ -60,6 +60,71 @@ class Bits(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_class_name(self):
+        suffix = "_bit"
+        if self.width > 1:
+            suffix += "s"
+        return snake_to_camel(self.name + suffix)
+
+    def get_init_py_def(self, indent=4, level=0):
+        """Return class initializer"""
+        cl = 0
+        out = "%sdef __init__(self):\n" % (cl*indent*' ')
+        cl += 1
+        out += "%sself.value = 0\n" % (cl*indent*' ')
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_getter_py_def(self, indent=4, level=0):
+        """Return getter definition"""
+        cl = 0
+        out = "%sdef get(self):\n" % (cl*indent*' ')
+        cl += 1
+        out += "%sreturn self.value\n" % (cl*indent*' ')
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_setter_py_def(self, indent=4, level=0):
+        """Return setter definition"""
+        cl = 0
+        out = "%sdef set(self, value):\n" % (cl*indent*' ')
+        cl += 1
+        # verify value is within range
+        if self.width == 1:
+            out += "%sassert (value == 0) or (value == 1), " % (cl*indent*' ')
+            out += "\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name)
+        else:
+            out += "%sassert ((value | 0x%x) >> %d) == 0, " % (cl*indent*' ',
+                                                               self.get_bits_mask(),
+                                                               self.width)
+            out += "\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name)
+        out += "%sself.value = value\n" % (cl*indent*' ')
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_class_py_def(self, indent=4, level=0):
+        """Return Bit Class Definition"""
+        cl = 0
+        out = "\n%s# %s\n" % (cl*indent*' ', self.desc)
+        out += "%sclass %s(object):\n" % (cl*indent*' ', self.get_class_name())
+        cl += 1
+        out += self.get_init_py_def(indent, cl)
+        out += self.get_setter_py_def(indent, cl)
+        out += self.get_getter_py_def(indent, cl)
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
 
 class BitField(object):
     """Bit field description
@@ -80,12 +145,14 @@ class BitField(object):
         self.bits = list()
         if "name" in self.bitfield.keys():
             self.name = self.bitfield["name"]
-        # Check we have a name
+        # Check we have a name, descriptions and bits
         assert self.name is not None, "bitfield is missing name"
-
+        assert "desc" in self.bitfield.keys(), "bitfield %s is missing description" % (self.name)
         assert "bits" in self.bitfield.keys(), "bitfield is missing bits description"
+        self.desc = self.bitfield["desc"]
+
         for b in self.bitfield["bits"]:
-            # Check fields
+            # Check bit fields have name, position and description
             assert "name" in b.keys(), "bit is missing name"
             assert "position" in b.keys(), "bit %s is missing position" % (b["name"])
             assert "desc" in b.keys(), "bit %s is missing description" % (b["name"])
@@ -104,6 +171,39 @@ class BitField(object):
 
         for bit in self.bits:
             out += bit.get_bits_c_def(indent, level)
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_class_name(self):
+        return snake_to_camel(self.name + "_bit_field")
+
+    def get_init_py_def(self, indent=4, level=0):
+        """Return BitField Initializer"""
+        cl = 0
+        out = "%sdef __init__(self):\n" % (cl*indent*' ')
+        cl += 1
+        for b in self.bits:
+            out += "%sself.%s = self.%s()\n" % (cl*indent*' ', b.name, b.get_class_name())
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_class_py_def(self, indent=4, level=0):
+        """Return string with python class declaration for BitField"""
+        cl = 0
+        out = "%s# %s\n" % (cl*indent*' ', self.desc)
+        out += "%sclass %s(object):\n" % (cl*indent*' ', self.get_class_name())
+        cl += 1
+        # define class for each bit(s) definition
+        for b in self.bits:
+            out += b.get_class_py_def(indent, cl)
+
+        out += self.get_init_py_def(indent, cl)
 
         out += "\n"
         # indent to requested level
@@ -1224,13 +1324,16 @@ class DefsGen(object):
             with open(py_file, 'w') as py_fd:
                 py_fd.write(self.get_py_header())
 
-                # Write Messages python definitions
-                for m in self.messages:
-                    py_fd.write(m.get_class_py_def())
-
                 # Write Enums python definitions
                 for e in self.enums:
                     py_fd.write(e.get_enum_py_def())
+
+                for bf in self.bitfields:
+                    py_fd.write(bf.get_class_py_def())
+
+                # Write Messages python definitions
+                for m in self.messages:
+                    py_fd.write(m.get_class_py_def())
 
                 py_fd.write(self.get_msg_creator_py_def())
                 py_fd.write(self.get_update_subparsers_py_def())
