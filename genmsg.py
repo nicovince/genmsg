@@ -16,6 +16,101 @@ def snake_to_camel(word):
     return ''.join(x.capitalize() or '_' for x in word.split('_'))
 
 
+class Bits(object):
+    """Bits description within a bitfield
+
+    Describe one or more bit in a bitfield with a name, position, width, description.
+    An enumeration can be attached to a bits description
+    """
+    def __init__(self, name, position, desc, prefix, width=1):
+        """Bits constructor
+
+        name: string describing the bit(s)
+        position: index within the bitfield of the LSB of the bit(s),
+        desc: string giving a description of what the bit(s) do
+        """
+        self.name = name
+        self.position = position
+        self.desc = desc
+        self.width = width
+        self.prefix = prefix
+
+    def get_bits_name(self):
+        return self.prefix.upper() + "_" + self.name.upper()
+
+    def get_bits_mask(self):
+        """Mask of the bits, not shifted to position"""
+        return (1 << self.width) -1
+
+    def get_bits_c_def(self, indent=4, level=0):
+        """Return string with C define for bits description"""
+        cl = 0
+
+        out = "/* %s */\n" % (self.desc)
+        if self.width == 1:
+            out += "#define %s (1 << %d)\n" % (self.get_bits_name(), self.position)
+        else:
+            out += "#define %s_MASK (0x%x << %d)\n" % (self.get_bits_name(),
+                                                       self.get_bits_mask(),
+                                                       self.position)
+            out += "#define %s_POS %d\n" % (self.get_bits_name(), self.position)
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+
+class BitField(object):
+    """Bit field description
+
+    Describe bits within a field with a name position width and description
+    """
+
+    def __init__(self, bitfield, name=None):
+        """BitField constructor
+
+        bitfield: dictionary from element yaml 'bitfields' list or 'bitfield'
+                  entry in fields dictionary
+        name: Required if bitfield is attached to 'bitfields' list and not to a
+              particular field
+        """
+        self.bitfield = bitfield
+        self.name = name
+        self.bits = list()
+        if "name" in self.bitfield.keys():
+            self.name = self.bitfield["name"]
+        # Check we have a name
+        assert self.name is not None, "bitfield is missing name"
+
+        assert "bits" in self.bitfield.keys(), "bitfield is missing bits description"
+        for b in self.bitfield["bits"]:
+            # Check fields
+            assert "name" in b.keys(), "bit is missing name"
+            assert "position" in b.keys(), "bit %s is missing position" % (b["name"])
+            assert "desc" in b.keys(), "bit %s is missing description" % (b["name"])
+            width = 1
+            if "width" in b.keys():
+                width = b["width"]
+            # Create bit
+            bit = Bits(b["name"], b["position"], b["desc"], self.name, width)
+            self.bits.append(bit)
+
+    def get_bitfield_c_defines(self, indent=4, level=0):
+        """Return string containing defines for bitfield"""
+        out = ""
+        if self.name is not None:
+            out += "/* %s bitfield */\n" % (self.name)
+
+        for bit in self.bits:
+            out += bit.get_bits_c_def(indent, level)
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+
 class StructField(object):
     """Field of a structure/message"""
     ctype_range = dict()
@@ -977,13 +1072,17 @@ class DefsGen(object):
 
         self.messages = list()
         self.enums = list()
+        self.bitfields = list()
 
         self.process_types_defs()
+        self.process_bitfields_defs()
         self.process_messages_defs()
         self.process_enums_defs()
 
     def process_messages_defs(self):
         """Read message definitions and build objects accordingly"""
+        if "messages" not in self.defs.keys():
+            return
         for m in self.defs["messages"]:
             msg_elt = MessageElt(m)
             self.messages.append(msg_elt)
@@ -1013,6 +1112,14 @@ class DefsGen(object):
             enum_elt = EnumElt(e)
             self.enums.append(enum_elt)
 
+    def process_bitfields_defs(self):
+        """Read bitfields definitions"""
+        if "bitfields" not in self.defs.keys():
+            return
+        for bf in self.defs["bitfields"]:
+            bf = BitField(bf)
+            self.bitfields.append(bf)
+
     def get_h_header(self):
         define = "__" + self.filename_prefix.upper() + "_H__"
         s = "#ifndef %s\n" % define
@@ -1037,6 +1144,8 @@ class DefsGen(object):
     def get_update_subparsers_py_def(self, indent=4, level=0):
         """Return function which update parser with subparsers for each message"""
         out = "def update_subparsers(subparsers):\n"
+        if len(self.messages) == 0:
+            out += "%sreturn\n" % (indent*' ')
         for m in self.messages:
             if m.id is None:
                 continue
@@ -1078,6 +1187,8 @@ class DefsGen(object):
 
     def get_autotest_py_def(self, indent=4, level=0):
         out = "def autotest():\n"
+        if len(self.messages) == 0:
+            out += "%sreturn\n" % (indent*' ')
         for m in self.messages:
             out += "%s%s.autotest()\n" % (indent*' ', snake_to_camel(m.name))
         out += "\n\n"
@@ -1095,6 +1206,10 @@ class DefsGen(object):
                 # Write Enums C definitions
                 for e in self.enums:
                     h_fd.write(e.get_enum_c_def())
+
+                # Write Bitfield C definitions
+                for bf in self.bitfields:
+                    h_fd.write(bf.get_bitfield_c_defines())
 
                 # Write Messages C definitions
                 for m in self.messages:
