@@ -153,14 +153,22 @@ class Bits(object):
         out = "%sdef set(self, value):\n" % (cl*indent*' ')
         cl += 1
         # verify value is within range
-        if self.width == 1:
-            out += "%sassert (value == 0) or (value == 1), " % (cl*indent*' ')
-            out += "\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name)
+        if self.enum is None:
+            if self.width == 1:
+                out += "%sassert (value == 0) or (value == 1), " % (cl*indent*' ')
+                out += "\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name)
+            else:
+                out += "%sassert ((value | 0x%x) >> %d) == 0, " % (cl*indent*' ',
+                                                                   self.get_bits_mask(),
+                                                                   self.width)
+                out += "\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name)
         else:
-            out += "%sassert ((value | 0x%x) >> %d) == 0, " % (cl*indent*' ',
-                                                               self.get_bits_mask(),
-                                                               self.width)
-            out += "\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name)
+            enum_def = DefsGen.instance.get_enum(self.enum)
+            out += "%sassert value.__class__.__name__ == \"%s\", " % (cl*indent*' ',
+                                                                      enum_def.get_class_name())
+            out += "\"Invalid value %%r for bit %s, must be of kind %s\" %% (value)\n" % (self.name,
+                                                                                          enum_def.get_class_name())
+
         out += "%sself.value = value\n" % (cl*indent*' ')
 
         out += "\n"
