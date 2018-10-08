@@ -153,9 +153,9 @@ class Bits(object):
     def get_class_py_def(self, indent=4, level=0):
         """Return Bit Class Definition"""
         cl = 0
-        out = "\n%s# %s\n" % (cl*indent*' ', self.desc)
-        out += "%sclass %s(object):\n" % (cl*indent*' ', self.get_class_name())
+        out = "\n%sclass %s(object):\n" % (cl*indent*' ', self.get_class_name())
         cl += 1
+        out += "%s\"\"\"%s\"\"\"\n" % (cl*indent*' ', self.desc)
         out += self.get_init_py_def(indent, cl)
         out += self.get_setter_py_def(indent, cl)
         out += self.get_getter_py_def(indent, cl)
@@ -240,9 +240,9 @@ class BitField(object):
     def get_class_py_def(self, indent=4, level=0):
         """Return string with python class declaration for BitField"""
         cl = 0
-        out = "%s# %s\n" % (cl*indent*' ', self.desc)
-        out += "%sclass %s(object):\n" % (cl*indent*' ', self.get_class_name())
+        out = "%sclass %s(object):\n" % (cl*indent*' ', self.get_class_name())
         cl += 1
+        out += "%s\"\"\"%s\"\"\"\n" % (cl*indent*' ', self.desc)
         # define class for each bit(s) definition
         for b in self.bits:
             out += b.get_class_py_def(indent, cl)
@@ -502,9 +502,9 @@ class MessageElt(object):
         current_level = 0
 
         # Class definition
-        out = "# %s\n" % self.desc
-        out += "class %s(object):\n" % snake_to_camel(self.name)
+        out = "class %s(object):\n" % snake_to_camel(self.name)
         current_level = current_level + 1
+        out += "%s\"\"\"%s\"\"\"\n" % (current_level*indent*' ', self.desc)
         out += "%sn_fields = %d\n\n" % (current_level*indent*" ", len(self.fields))
         if self.id is not None:
             out += "%smsg_id = %d\n\n" % (current_level*indent*" ", self.id)
