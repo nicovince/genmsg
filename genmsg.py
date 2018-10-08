@@ -135,6 +135,19 @@ class Bits(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_str_py_def(self, indent=4, level=0):
+        """Return __str__ method for Bit"""
+        cl = 0
+        out = "def __str__(self):\n"
+        cl += 1
+        out += "%sreturn \"%s: %%s\" %% (self.value)\n" % (cl*indent*' ',
+                                                           self.name)
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+
     def get_getter_py_def(self, indent=4, level=0):
         """Return getter definition"""
         cl = 0
@@ -186,6 +199,7 @@ class Bits(object):
         out += "%swidth = %d\n" % (cl*indent*' ', self.width)
         out += "%sname = \"%s\"\n" % (cl*indent*' ', self.name)
         out += self.get_init_py_def(indent, cl)
+        out += self.get_str_py_def(indent, cl)
         out += self.get_setter_py_def(indent, cl)
         out += self.get_getter_py_def(indent, cl)
 
@@ -285,6 +299,24 @@ class BitField(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_str_py_def(self, indent=4, level=0):
+        """Return __str__ method for BitField"""
+        cl = 0
+        out = "def __str__(self):\n"
+        cl += 1
+        out += "%sout = \"\"\n" % (cl*indent*' ')
+        bits = list(self.bits)
+        bits.sort()
+        bits.reverse()
+        for b in bits:
+            out += "%sout += \"%%s\\n\" %% (self.%s)\n" % (cl*indent*' ',
+                                                           b.name)
+        out += "%sreturn out\n" % (cl*indent*' ')
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def get_class_py_def(self, indent=4, level=0):
         """Return string with python class declaration for BitField"""
         cl = 0
@@ -296,6 +328,7 @@ class BitField(object):
             out += b.get_class_py_def(indent, cl)
 
         out += self.get_init_py_def(indent, cl)
+        out += self.get_str_py_def(indent, cl)
 
         out += "\n"
         # indent to requested level
