@@ -123,7 +123,12 @@ class Bits(object):
         cl = 0
         out = "%sdef __init__(self):\n" % (cl*indent*' ')
         cl += 1
-        out += "%sself.value = 0\n" % (cl*indent*' ')
+        default_value = 0
+        if self.enum is not None:
+            enum_def = DefsGen.instance.get_enum(self.enum)
+            default_value = "%s.default()" % (enum_def.get_class_name())
+
+        out += "%sself.value = %s\n" % (cl*indent*' ', default_value)
 
         out += "\n"
         # indent to requested level
@@ -1101,6 +1106,9 @@ class EnumEntry(object):
         self.value = value
         self.desc = desc
 
+    def __lt__(self, other):
+        return self.value < other.value
+
 
 class EnumElt(object):
     """Enumeration object created from dictionary definition"""
@@ -1156,6 +1164,7 @@ class EnumElt(object):
         out += self.get_enum_eq_py_def(indent=indent, level=level+1)
         out += self.get_enum_type_py_def(indent=indent, level=level+1)
         out += self.get_enum_hash_py_def(indent=indent, level=level+1)
+        out += self.get_enum_default_py_def(indent=indent, level=level+1)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -1230,6 +1239,19 @@ class EnumElt(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_enum_default_py_def(self, indent=4, level=0):
+        """Generate function which return default value for enum"""
+        cl = 0
+        out = "@staticmethod\n"
+        out += "def default():\n"
+        cl += 1
+        out += "%sreturn %s.%s\n" % (cl*indent*' ', self.get_class_name(),
+                                     self.get_lowest_enum().name.upper())
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def check_enum(self):
         """Verify enum has only one instance of each name and value"""
         # Check names duplicates
@@ -1244,6 +1266,14 @@ class EnumElt(object):
             dups = set([str(n) for n in vals if vals.count(n) > 1])
             raise ValueError("found value %s used for more than one name in %s"
                              % (' '.join(dups), self.name))
+
+    def get_lowest_enum(self):
+        """Get lowest enum"""
+        # Work on copy of entry because sort() works in place
+        entries = list(self.entries)
+        entries.sort()
+        return entries[0]
+
 
 
 class DefsGen(object):
