@@ -1,0 +1,17 @@
+# Assert because cat_race enum is not defined
+bitfields:
+- name: cat_status
+  desc: "Cat Status Bitfield"
+  bits:
+  - name: sleeping
+    position: 0
+    desc: "Set to 1 when the cat is sleeping"
+  - name: lives
+    position: 1
+    width: 4
+    desc: "Number of lives used by the cat"
+  - name: race
+    position: 5
+    width: 1
+    desc: "Cat's race"
+    enum: cat_race

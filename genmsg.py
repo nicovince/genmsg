@@ -3,6 +3,7 @@ import re
 from ruamel import yaml
 import argparse
 import struct
+import math
 
 
 def shift_indent_level(s, indent, level):
@@ -11,10 +12,8 @@ def shift_indent_level(s, indent, level):
     s = re.sub("(^|\n)(.)", r"\1" + indent_prefix + r"\2", s)
     return s
 
-
 def snake_to_camel(word):
     return ''.join(x.capitalize() or '_' for x in word.split('_'))
-
 
 class Bits(object):
     """Bits description within a bitfield
@@ -34,6 +33,7 @@ class Bits(object):
         self.desc = desc
         self.width = width
         self.prefix = prefix
+        self.enum = None
 
     def __str__(self):
         if self.width == 1:
@@ -55,6 +55,8 @@ class Bits(object):
                 and (self.desc == other.desc) and (self.width == other.width)
                 and (self.prefix == other.prefix))
 
+    def attach_enum(self, name):
+        self.enum = name
 
     def upper_bit_pos(self):
         """Return upper bit position"""
@@ -200,6 +202,14 @@ class BitField(object):
                 width = b["width"]
             # Create bit
             bit = Bits(b["name"], b["position"], b["desc"], self.name, width)
+
+            if "enum" in b:
+                enum_name = b["enum"]
+                bit.attach_enum(enum_name)
+                # Override bit width from enum required width
+                enum_def = DefsGen.instance.get_enum(enum_name)
+                assert enum_def is not None, "Enum %s must be defined before using it in bitfield %s" % (enum_name, self.name)
+                bit.width = enum_def.get_enum_bit_width()
 
             # Check bit does not conflicts with each others
             for other_bit in self.bits:
@@ -1087,6 +1097,13 @@ class EnumElt(object):
             self.entries.append(EnumEntry(e["entry"], e["value"], e["desc"]))
         self.check_enum()
 
+    def get_enum_bit_width(self):
+        """Return number of bits needed to code maximum value present in enum"""
+        max_val = 0
+        for entry in self.entries:
+            max_val = max(max_val, entry.value)
+        return math.ceil(math.log(max_val + 1, 2))
+
     def get_enum_c_def(self, indent=4, level=0):
         """Return string with C enum declaration"""
         out = "/* %s */\n" % (self.desc)
@@ -1205,6 +1222,7 @@ class EnumElt(object):
 
 
 class DefsGen(object):
+    instance = None
     def __init__(self, defs, indent, h_gen, h_dest, py_gen, py_dest):
         self.defs = defs
         self.indent = indent
@@ -1217,11 +1235,23 @@ class DefsGen(object):
         self.messages = list()
         self.enums = list()
         self.bitfields = list()
+        DefsGen.instance = self
 
+        self.process_enums_defs()
         self.process_types_defs()
         self.process_bitfields_defs()
         self.process_messages_defs()
-        self.process_enums_defs()
+
+    def get_enum(self, name):
+        """Return Enum from its name
+
+        return None when there is no match
+        """
+        for e in self.enums:
+            if e.name == name:
+                return e
+        return None
+
 
     def process_messages_defs(self):
         """Read message definitions and build objects accordingly"""

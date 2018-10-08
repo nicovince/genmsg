@@ -1,3 +1,17 @@
+enums:
+- name: cat_race
+  desc: "Cat's origin"
+  entries:
+  - entry: european
+    desc: "European cat, aka gutter cat"
+    value: 0
+  - entry: siamese
+    desc: "Siamese cat"
+    value: 1
+  - entry: abyssin
+    desc: "Abyssin cat from asia"
+    value: 2
+
 bitfields:
 - name: boat_status
   desc: "Boat Status Bitfield"
@@ -20,3 +34,8 @@ bitfields:
     position: 1
     width: 4
     desc: "Number of lives used by the cat"
+  - name: race
+    position: 5
+    width: 5
+    desc: "Cat's race"
+    enum: cat_race
