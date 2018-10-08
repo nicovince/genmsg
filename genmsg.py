@@ -158,6 +158,9 @@ class Bits(object):
         out = "\n%sclass %s(object):\n" % (cl*indent*' ', self.get_class_name())
         cl += 1
         out += "%s\"\"\"%s\"\"\"\n" % (cl*indent*' ', self.desc)
+        out += "%sposition = %d\n" % (cl*indent*' ', self.position)
+        out += "%swidth = %d\n" % (cl*indent*' ', self.width)
+        out += "%sname = \"%s\"\n" % (cl*indent*' ', self.name)
         out += self.get_init_py_def(indent, cl)
         out += self.get_setter_py_def(indent, cl)
         out += self.get_getter_py_def(indent, cl)
