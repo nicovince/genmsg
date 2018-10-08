@@ -1,0 +1,12 @@
+bitfields:
+- name: boat_status
+  desc: "Boat Status Bitfield"
+  bits:
+  - name: length
+    position: 1
+    width: 7
+    desc: "Length of the boat in meters [0 - 127]"
+  - name: sinked
+    position: 3
+    desc: "Set to 1 when the boat is at the bottom of the water"
+

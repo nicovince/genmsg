@@ -1,0 +1,14 @@
+bitfields:
+- name: size
+  desc: "Size description"
+  bits:
+  - name: width
+    position: 0
+    desc: "Width desc"
+    width: 5
+  - name: length
+    position: 2
+    desc: "Length desc"
+    width: 7
+
+

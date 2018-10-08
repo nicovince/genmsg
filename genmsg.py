@@ -35,6 +35,45 @@ class Bits(object):
         self.width = width
         self.prefix = prefix
 
+    def __str__(self):
+        if self.width == 1:
+            return "%s[%d]" % (self.name, self.position)
+        else:
+            return "%s[%d-%d]" % (self.name, self.upper_bit_pos(), self.position)
+
+    def __repr__(self):
+        return "%s(name=%r, position=%r, desc=%r, prefix=%r, width=%r)" % (self.__class__.__name__,
+                                                                           self.name,
+                                                                           self.position,
+                                                                           self.desc,
+                                                                           self.prefix,
+                                                                           self.width)
+
+    def __eq__(self, other):
+        """Test if two bits are equals"""
+        return ((self.name == other.name) and (self.position == other.position)
+                and (self.desc == other.desc) and (self.width == other.width)
+                and (self.prefix == other.prefix))
+
+
+    def upper_bit_pos(self):
+        """Return upper bit position"""
+        return self.position + self.width - 1
+
+    def bit_conflicts(self, other):
+        """Return true when two bits conflicts
+
+        Two bits can conflict if position overlaps
+        Do not conflict with itself
+        """
+        if self == other:
+            return False
+        if ((self.upper_bit_pos() < other.position)
+            or (self.position > other.upper_bit_pos())):
+            return False
+
+        return True
+
     def get_bits_name(self):
         return self.prefix.upper() + "_" + self.name.upper()
 
@@ -161,6 +200,11 @@ class BitField(object):
                 width = b["width"]
             # Create bit
             bit = Bits(b["name"], b["position"], b["desc"], self.name, width)
+
+            # Check bit does not conflicts with each others
+            for other_bit in self.bits:
+                assert not bit.bit_conflicts(other_bit), "Bit position in %s conflicts between %s and %s" % (self.name, bit.name, other_bit.name)
+
             self.bits.append(bit)
 
     def get_bitfield_c_defines(self, indent=4, level=0):
