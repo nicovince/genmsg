@@ -55,6 +55,17 @@ class Bits(object):
                 and (self.desc == other.desc) and (self.width == other.width)
                 and (self.prefix == other.prefix))
 
+    def __lt__(self, other):
+        """Test bit order based on position in the field"""
+        return self.position < other.position
+
+    def get_str_range(self):
+        """Return string range for this bit(s)"""
+        if self.width == 1:
+            return "%d" % self.position
+        else:
+            return "%d:%d" % (self.upper_bit_pos(), self.position)
+
     def attach_enum(self, name):
         self.enum = name
 
@@ -219,6 +230,17 @@ class BitField(object):
                 assert not bit.bit_conflicts(other_bit), "Bit position in %s conflicts between %s and %s" % (self.name, bit.name, other_bit.name)
 
             self.bits.append(bit)
+
+    def __str__(self):
+        out = "%s:\n" % (self.name)
+        # Work on copy of bits because sort works 'in place'
+        bits = self.bits
+        # Display bits msb first
+        bits.sort()
+        bits.reverse()
+        for b in bits:
+            out += "%s  [%s] %s\n" % (len(self.name)*' ', b.get_str_range(), b.name)
+        return out[:-1]
 
     def get_bitfield_c_defines(self, indent=4, level=0):
         """Return string containing defines for bitfield"""
