@@ -23,7 +23,7 @@ class Bits(object):
     An enumeration can be attached to a bits description
     """
     def __init__(self, name, position, desc, prefix, width=1):
-        """Bits constructor
+        """Bits initializer
 
         name: string describing the bit(s)
         position: index within the bitfield of the LSB of the bit(s),
@@ -133,7 +133,7 @@ class BitField(object):
     """
 
     def __init__(self, bitfield, name=None):
-        """BitField constructor
+        """BitField initializer
 
         bitfield: dictionary from element yaml 'bitfields' list or 'bitfield'
                   entry in fields dictionary
@@ -489,7 +489,7 @@ class MessageElt(object):
         return out
 
     def get_init_py_def(self, indent=4, level=0):
-        """Return constructor method"""
+        """Return initializer method"""
         # Field names of Message
         field_names = [f.name for f in self.fields]
 
