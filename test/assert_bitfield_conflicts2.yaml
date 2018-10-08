@@ -1,3 +1,4 @@
+# Assert because bit length and skinked conflicts in position
 bitfields:
 - name: boat_status
   desc: "Boat Status Bitfield"
