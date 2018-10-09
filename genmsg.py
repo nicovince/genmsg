@@ -189,6 +189,21 @@ class Bits(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_pack_py_def(self, indent=4, level=0):
+        """Return bit packing function"""
+        cl = 0
+        out = "def pack(self):\n"
+        cl += 1
+        if self.enum is None:
+            out += "%sreturn self.value << %d\n" % (cl*indent*' ', self.position)
+        else:
+            out += "%sreturn self.value.value << %d\n" % (cl*indent*' ', self.position)
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def get_class_py_def(self, indent=4, level=0):
         """Return Bit Class Definition"""
         cl = 0
@@ -200,6 +215,7 @@ class Bits(object):
         out += "%sname = \"%s\"\n" % (cl*indent*' ', self.name)
         out += self.get_init_py_def(indent, cl)
         out += self.get_str_py_def(indent, cl)
+        out += self.get_pack_py_def(indent, cl)
         out += self.get_setter_py_def(indent, cl)
         out += self.get_getter_py_def(indent, cl)
 
@@ -317,6 +333,26 @@ class BitField(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_pack_py_def(self, indent=4, level=0):
+        """Return function which packs all bitfields"""
+        cl = 0
+        out = "def pack(self):\n"
+        cl += 1
+        out += "%s\"\"\"Pack each bit of bitfield and return packed integer.\"\"\"\n" % (cl*indent*' ')
+        out += "%sret = 0\n" % (cl*indent*' ')
+        bits = list(self.bits)
+        bits.sort()
+        bits.reverse()
+        for b in bits:
+            out += "%sret |= self.%s.pack()\n" % (cl*indent*' ', b.name)
+
+        out += "%sreturn ret\n" % (cl*indent*' ')
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def get_class_py_def(self, indent=4, level=0):
         """Return string with python class declaration for BitField"""
         cl = 0
@@ -329,6 +365,7 @@ class BitField(object):
 
         out += self.get_init_py_def(indent, cl)
         out += self.get_str_py_def(indent, cl)
+        out += self.get_pack_py_def(indent, cl)
 
         out += "\n"
         # indent to requested level
