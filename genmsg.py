@@ -128,7 +128,7 @@ class Bits(object):
             enum_def = DefsGen.instance.get_enum(self.enum)
             default_value = "%s.default()" % (enum_def.get_class_name())
 
-        out += "%sself.value = %s\n" % (cl*indent*' ', default_value)
+        out += "%sself._value = %s\n" % (cl*indent*' ', default_value)
 
         out += "\n"
         # indent to requested level
@@ -140,7 +140,7 @@ class Bits(object):
         cl = 0
         out = "def __str__(self):\n"
         cl += 1
-        out += "%sreturn \"%s: %%s\" %% (self.value)\n" % (cl*indent*' ',
+        out += "%sreturn \"%s: %%s\" %% (self._value)\n" % (cl*indent*' ',
                                                            self.name)
         out += "\n"
         # indent to requested level
@@ -151,9 +151,10 @@ class Bits(object):
     def get_getter_py_def(self, indent=4, level=0):
         """Return getter definition"""
         cl = 0
-        out = "%sdef get(self):\n" % (cl*indent*' ')
+        out = "%s@property\n" % (cl*indent*' ')
+        out += "%sdef value(self):\n" % (cl*indent*' ')
         cl += 1
-        out += "%sreturn self.value\n" % (cl*indent*' ')
+        out += "%sreturn self._value\n" % (cl*indent*' ')
 
         out += "\n"
         # indent to requested level
@@ -163,7 +164,8 @@ class Bits(object):
     def get_setter_py_def(self, indent=4, level=0):
         """Return setter definition"""
         cl = 0
-        out = "%sdef set(self, value):\n" % (cl*indent*' ')
+        out = "%s@value.setter\n" % (cl*indent*' ')
+        out += "%sdef value(self, value):\n" % (cl*indent*' ')
         cl += 1
         # verify value is within range
         if self.enum is None:
@@ -182,7 +184,7 @@ class Bits(object):
             out += "\"Invalid value %%r for bit %s, must be of kind %s\" %% (value)\n" % (self.name,
                                                                                           enum_def.get_class_name())
 
-        out += "%sself.value = value\n" % (cl*indent*' ')
+        out += "%sself._value = value\n" % (cl*indent*' ')
 
         out += "\n"
         # indent to requested level
@@ -195,9 +197,9 @@ class Bits(object):
         out = "def pack(self):\n"
         cl += 1
         if self.enum is None:
-            out += "%sreturn self.value << %d\n" % (cl*indent*' ', self.position)
+            out += "%sreturn self._value << %d\n" % (cl*indent*' ', self.position)
         else:
-            out += "%sreturn self.value.value << %d\n" % (cl*indent*' ', self.position)
+            out += "%sreturn self._value.value << %d\n" % (cl*indent*' ', self.position)
 
         out += "\n"
         # indent to requested level
@@ -216,8 +218,8 @@ class Bits(object):
         out += self.get_init_py_def(indent, cl)
         out += self.get_str_py_def(indent, cl)
         out += self.get_pack_py_def(indent, cl)
-        out += self.get_setter_py_def(indent, cl)
         out += self.get_getter_py_def(indent, cl)
+        out += self.get_setter_py_def(indent, cl)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -308,7 +310,7 @@ class BitField(object):
         out = "%sdef __init__(self):\n" % (cl*indent*' ')
         cl += 1
         for b in self.bits:
-            out += "%sself.%s = self.%s()\n" % (cl*indent*' ', b.name, b.get_class_name())
+            out += "%sself._%s = self.%s()\n" % (cl*indent*' ', b.name, b.get_class_name())
 
         out += "\n"
         # indent to requested level
@@ -325,8 +327,8 @@ class BitField(object):
         bits.sort()
         bits.reverse()
         for b in bits:
-            out += "%sout += \"%%s\\n\" %% (self.%s)\n" % (cl*indent*' ',
-                                                           b.name)
+            out += "%sout += \"%%s\\n\" %% (self._%s)\n" % (cl*indent*' ',
+                                                            b.name)
         out += "%sreturn out\n" % (cl*indent*' ')
         out += "\n"
         # indent to requested level
@@ -353,6 +355,36 @@ class BitField(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_getters_py_def(self, indent=4, level=0):
+        """Return getters for each bit of the bitfield"""
+        cl = 0
+        out = ""
+        for b in self.bits:
+            out += "%s@property\n" % (cl*indent*' ')
+            out += "%sdef %s(self):\n" % (cl*indent*' ', b.name)
+            cl += 1
+            out += "%sreturn self._%s\n\n" % (cl*indent*' ', b.name)
+            cl -= 1
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_setters_py_def(self, indent=4, level=0):
+        """Return setters for each bit of the bitfield"""
+        cl = 0
+        out = ""
+        for b in self.bits:
+            out += "%s@%s.setter\n" % (cl*indent*' ', b.name)
+            out += "%sdef %s(self, value):\n" % (cl*indent*' ', b.name)
+            cl += 1
+            out += "%sself._%s.value = value\n\n" % (cl*indent*' ', b.name)
+            cl -= 1
+
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def get_class_py_def(self, indent=4, level=0):
         """Return string with python class declaration for BitField"""
         cl = 0
@@ -364,6 +396,8 @@ class BitField(object):
             out += b.get_class_py_def(indent, cl)
 
         out += self.get_init_py_def(indent, cl)
+        out += self.get_getters_py_def(indent, cl)
+        out += self.get_setters_py_def(indent, cl)
         out += self.get_str_py_def(indent, cl)
         out += self.get_pack_py_def(indent, cl)
 
