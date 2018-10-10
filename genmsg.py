@@ -99,6 +99,7 @@ class Bits(object):
         cl = 0
 
         out = "/* %s */\n" % (self.desc)
+        # Bits position and mask if width > 1
         if self.width == 1:
             out += "#define %s (1 << %d)\n" % (self.get_bits_name(), self.position)
         else:
@@ -106,6 +107,16 @@ class Bits(object):
                                                        self.get_bits_mask(),
                                                        self.position)
             out += "#define %s_POS %d\n" % (self.get_bits_name(), self.position)
+
+        # Enums shifted to bits position
+        if self.enum is not None:
+            enum_def = DefsGen.instance.get_enum(self.enum)
+            for e in enum_def.entries:
+                enum_prefix = self.get_bits_name()
+                out += "#define %s_%s (%s << %s_POS)\n" % (enum_prefix,
+                                                           e.get_enum_name(),
+                                                           e.get_enum_name(),
+                                                           self.get_bits_name())
 
         out += "\n"
         # indent to requested level
@@ -1221,6 +1232,10 @@ class EnumEntry(object):
     def __lt__(self, other):
         return self.value < other.value
 
+    def get_enum_name(self):
+        """Return enum name to use in generated files"""
+        return self.name.upper()
+
 
 class EnumElt(object):
     """Enumeration object created from dictionary definition"""
@@ -1256,7 +1271,7 @@ class EnumElt(object):
         max_enum_val = 0
         for e in self.entries:
             out += "%s%s = %d, /* %s */\n" % (indent*" ",
-                                              e.name.upper(), e.value, e.desc)
+                                              e.get_enum_name(), e.value, e.desc)
             max_enum_val = max(max_enum_val, e.value)
         out += "%s%s_END = %d\n" % (indent*" ", self.name, max_enum_val+1)
         out += "} %s_t;\n\n" % (self.name)
@@ -1270,7 +1285,7 @@ class EnumElt(object):
         out = "# %s\n" % (self.desc)
         out += "class %s(Enum):\n" % (snake_to_camel(self.name))
         for e in self.entries:
-            out += "%s%s = %d  # %s\n" % (indent*" ", e.name.upper(), e.value, e.desc)
+            out += "%s%s = %d  # %s\n" % (indent*" ", e.get_enum_name(), e.value, e.desc)
 
         out += "\n"
         out += self.get_enum_eq_py_def(indent=indent, level=level+1)
