@@ -298,6 +298,24 @@ class BitField(object):
             out += "%s  [%s] %s\n" % (len(self.name)*' ', b.get_str_range(), b.name)
         return out[:-1]
 
+    def get_bitwidth(self):
+        """Return bitwidth used by this bitfield"""
+        max_bit = 0
+        for b in self.bits:
+            max_bit = max(max_bit, b.upper_bit_pos())
+        return max_bit + 1
+
+    def get_base_type(self):
+        """Return matching ctype"""
+        bitwidth = self.get_bitwidth()
+        assert bitwidth <= 32, "Bitwidth for bitfield %s must not exceed 32 bits" % (self.name)
+        if bitwidth <= 8:
+            return "uint8_t"
+        elif bitwidth <= 16:
+            return "uint16_t"
+        elif bitwidth <= 32:
+            return "uint32_t"
+
     def get_bitfield_c_defines(self, indent=4, level=0):
         """Return string containing defines for bitfield"""
         out = ""
@@ -471,10 +489,24 @@ class StructField(object):
         return self.array_re.match(self.field_type) is not None
 
     def get_base_type(self):
+        """Return Base type for the field
+
+        Either a struct or ctype, for bitfields, the matching ctype is returned
+        """
+        bf = DefsGen.instance.get_bitfield(self.field_type)
+        if bf is not None:
+            return bf.get_base_type()
         return re.sub("\[\d*\]", "", self.field_type)
 
+    def is_bitfield(self):
+        bf = DefsGen.instance.get_bitfield(self.field_type)
+        return bf is not None
+
     def is_ctype(self):
-        return self.get_base_type() in self.ctype_to_struct_fmt.keys()
+        if self.is_bitfield() is not None:
+            return True
+        else:
+            return self.get_base_type() in self.ctype_to_struct_fmt.keys()
 
     def get_range(self):
         """return tuple with min/max value"""
@@ -1434,6 +1466,15 @@ class DefsGen(object):
                 return e
         return None
 
+    def get_bitfield(self, name):
+        """Return Bitfield from its name
+
+        return None when there is no match
+        """
+        for bf in self.bitfields:
+            if bf.name == name:
+                return bf
+        return None
 
     def process_messages_defs(self):
         """Read message definitions and build objects accordingly"""

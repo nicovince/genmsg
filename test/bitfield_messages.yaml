@@ -1,0 +1,42 @@
+enums:
+- name: cat_race
+  desc: "Cat's origin"
+  entries:
+  - entry: european
+    desc: "European cat, aka gutter cat"
+    value: 0
+  - entry: siamese
+    desc: "Siamese cat"
+    value: 1
+  - entry: abyssin
+    desc: "Abyssin cat from asia"
+    value: 2
+
+bitfields:
+- name: cat_status
+  desc: "Cat Status Bitfield"
+  bits:
+  - name: sleeping
+    position: 0
+    desc: "Set to 1 when the cat is sleeping"
+  - name: lives
+    position: 1
+    width: 4
+    desc: "Number of lives used by the cat"
+  - name: race
+    position: 5
+    width: 5
+    desc: "Cat s race"
+    enum: cat_race
+
+messages:
+- name: cat
+  id: 0
+  desc: "Cat Description"
+  fields:
+  - name: status
+    type: cat_status
+    desc: "Cat status"
+  - name: weight
+    type: uint16_t
+    desc: "cat s weight"
