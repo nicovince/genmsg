@@ -132,14 +132,9 @@ class Bits(object):
     def get_init_py_def(self, indent=4, level=0):
         """Return class initializer"""
         cl = 0
-        out = "%sdef __init__(self):\n" % (cl*indent*' ')
+        out = "%sdef __init__(self, value):\n" % (cl*indent*' ')
         cl += 1
-        default_value = 0
-        if self.enum is not None:
-            enum_def = DefsGen.instance.get_enum(self.enum)
-            default_value = "%s.default()" % (enum_def.get_class_name())
-
-        out += "%sself._value = %s\n" % (cl*indent*' ', default_value)
+        out += "%sself.value = value\n" % (cl*indent*' ')
 
         out += "\n"
         # indent to requested level
@@ -336,10 +331,14 @@ class BitField(object):
     def get_init_py_def(self, indent=4, level=0):
         """Return BitField Initializer"""
         cl = 0
-        out = "%sdef __init__(self):\n" % (cl*indent*' ')
+        bits = list(self.bits)
+        bits.sort()
+        bits_names = [b.name for b in bits]
+        out = "%sdef __init__(self, %s):\n" % (cl*indent*' ', ', '.join(bits_names))
         cl += 1
-        for b in self.bits:
-            out += "%sself._%s = self.%s()\n" % (cl*indent*' ', b.name, b.get_class_name())
+        for b in bits:
+            out += "%sself._%s = self.%s(%s)\n" % (cl*indent*' ', b.name,
+                                                   b.get_class_name(), b.name)
 
         out += "\n"
         # indent to requested level
