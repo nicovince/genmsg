@@ -153,6 +153,18 @@ class Bits(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_repr_py_def(self, indent=4, level=0):
+        """Return __repr__ method for Bit"""
+        cl = 0
+        out = "def __repr__(self):\n"
+        cl += 1
+        out += "%sreturn  \"%s(" % (cl*indent*' ', self.get_class_name())
+        out += "value=%s)\" % (str(self.value))\n"
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
 
     def get_getter_py_def(self, indent=4, level=0):
         """Return getter definition"""
@@ -223,6 +235,7 @@ class Bits(object):
         out += "%sname = \"%s\"\n" % (cl*indent*' ', self.name)
         out += self.get_init_py_def(indent, cl)
         out += self.get_str_py_def(indent, cl)
+        out += self.get_repr_py_def(indent, cl)
         out += self.get_pack_py_def(indent, cl)
         out += self.get_getter_py_def(indent, cl)
         out += self.get_setter_py_def(indent, cl)
