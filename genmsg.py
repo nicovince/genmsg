@@ -240,8 +240,6 @@ class Bits(object):
                                                             
         out += "%sreturn cls(value)\n" % (cl*indent*' ')
 
-
-
         out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
