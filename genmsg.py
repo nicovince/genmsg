@@ -223,6 +223,30 @@ class Bits(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_rand_py_def(self, indent=4, level=0):
+        """Return rand function"""
+        cl = 0
+        out = "@classmethod\n"
+        out += "def rand(cls):\n"
+        cl += 1
+        if self.enum is None:
+            out += "%smin_val = 0\n" % (cl*indent*' ')
+            out += "%smax_val = 0x%x\n" % (cl*indent*' ', self.get_bits_mask())
+            out += "%svalue = random.randint(range(min_val, max_val + 1))\n" % (cl*indent*' ')
+        else:
+            enum_def = DefsGen.instance.get_enum(self.enum)
+            out += "%svalue = random.choice(list(%s))\n" % (cl*indent*' ',
+                                                            enum_def.get_class_name())
+                                                            
+        out += "%sreturn cls(value)\n" % (cl*indent*' ')
+
+
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def get_class_py_def(self, indent=4, level=0):
         """Return Bit Class Definition"""
         cl = 0
@@ -236,6 +260,7 @@ class Bits(object):
         out += self.get_str_py_def(indent, cl)
         out += self.get_repr_py_def(indent, cl)
         out += self.get_pack_py_def(indent, cl)
+        out += self.get_rand_py_def(indent, cl)
         out += self.get_getter_py_def(indent, cl)
         out += self.get_setter_py_def(indent, cl)
 
