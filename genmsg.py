@@ -165,7 +165,6 @@ class Bits(object):
         out = shift_indent_level(out, indent, level)
         return out
 
-
     def get_getter_py_def(self, indent=4, level=0):
         """Return getter definition"""
         cl = 0
