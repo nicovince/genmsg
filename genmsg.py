@@ -514,7 +514,7 @@ class StructField(object):
         return bf is not None
 
     def is_ctype(self):
-        if self.is_bitfield() is not None:
+        if self.is_bitfield():
             return True
         else:
             return self.get_base_type() in self.ctype_to_struct_fmt.keys()
