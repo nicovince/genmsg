@@ -12,8 +12,10 @@ def shift_indent_level(s, indent, level):
     s = re.sub("(^|\n)(.)", r"\1" + indent_prefix + r"\2", s)
     return s
 
+
 def snake_to_camel(word):
     return ''.join(x.capitalize() or '_' for x in word.split('_'))
+
 
 class Bits(object):
     """Bits description within a bitfield
@@ -92,7 +94,7 @@ class Bits(object):
 
     def get_bits_mask(self):
         """Mask of the bits, not shifted to position"""
-        return (1 << self.width) -1
+        return (1 << self.width) - 1
 
     def get_bits_c_def(self, indent=4, level=0):
         """Return string with C define for bits description"""
@@ -147,7 +149,7 @@ class Bits(object):
         out = "def __str__(self):\n"
         cl += 1
         out += "%sreturn \"%s: %%s\" %% (self._value)\n" % (cl*indent*' ',
-                                                           self.name)
+                                                            self.name)
         out += "\n"
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -237,7 +239,7 @@ class Bits(object):
             enum_def = DefsGen.instance.get_enum(self.enum)
             out += "%svalue = random.choice(list(%s))\n" % (cl*indent*' ',
                                                             enum_def.get_class_name())
-                                                            
+
         out += "%sreturn cls(value)\n" % (cl*indent*' ')
 
         out += "\n"
@@ -1468,9 +1470,9 @@ class EnumElt(object):
         return entries[0]
 
 
-
 class DefsGen(object):
     instance = None
+
     def __init__(self, defs, indent, h_gen, h_dest, py_gen, py_dest):
         self.defs = defs
         self.indent = indent
