@@ -155,6 +155,17 @@ class Bits(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_eq_py_def(self, indent=4, level=0):
+        """Return __eq__ method for Bit"""
+        cl = 0
+        out = "def __eq__(self, other):\n"
+        cl += 1
+        out += "%sreturn self.value == other.value\n" % (cl*indent*' ')
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def get_repr_py_def(self, indent=4, level=0):
         """Return __repr__ method for Bit"""
         cl = 0
@@ -188,21 +199,38 @@ class Bits(object):
         cl += 1
         # verify value is within range
         if self.enum is None:
+            # Check value passed to setter is in valid range or is of the current class
             if self.width == 1:
-                out += "%sassert (value == 0) or (value == 1), " % (cl*indent*' ')
+                out += "%sassert isinstance(value, self.__class__) or " % (cl*indent*' ')
+                out += "(value == 0) or (value == 1), "
                 out += "\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name)
             else:
-                out += "%sassert ((value | 0x%x) >> %d) == 0, " % (cl*indent*' ',
-                                                                   self.get_bits_mask(),
-                                                                   self.width)
+                out += "%sassert isinstance(value, self.__class__) or " % (cl*indent*' ')
+                out += "((value | 0x%x) >> %d) == 0, " % (self.get_bits_mask(),
+                                                          self.width)
                 out += "\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name)
         else:
+            # Check value passed to setter is of the current class, the
+            # appropriate enum or enum value
             enum_def = DefsGen.instance.get_enum(self.enum)
-            out += "%sassert value.__class__.__name__ == \"%s\", " % (cl*indent*' ',
-                                                                      enum_def.get_class_name())
+            out += "%sassert isinstance(value, self.__class__) or " % (cl*indent*' ')
+            out += "value.__class__.__name__ == \"%s\" or " % (enum_def.get_class_name())
+            out += "value in [e.value for e in list(%s)], " % (enum_def.get_class_name())
             out += "\"Invalid value %%r for bit %s, must be of kind %s\" %% (value)\n" % (self.name,
                                                                                           enum_def.get_class_name())
 
+        out += "%sif isinstance(value, self.__class__):\n" % (cl*indent*' ')
+        cl += 1
+        out += "%sself._value = value.value\n" % (cl*indent*' ')
+        cl -= 1
+        if self.enum is not None:
+            out += "%selif isinstance(value, int):\n" % (cl*indent*' ')
+            cl += 1
+            out += "%sself._value = %s(value)\n" % (cl*indent*' ',
+                                                    enum_def.get_class_name())
+            cl -= 1
+        out += "%selse:\n" % (cl*indent*' ')
+        cl += 1
         out += "%sself._value = value\n" % (cl*indent*' ')
 
         out += "\n"
@@ -225,6 +253,20 @@ class Bits(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_unpack_py_def(self, indent=4, level=0):
+        """Return Bit unpacking function"""
+        cl = 0
+        out = "@classmethod\n"
+        out += "def unpack(cls, data):\n"
+        cl += 1
+        out += "%svalue = (data >> cls.position) & ((1 << cls.width) - 1)\n" % (cl*indent*' ')
+        out += "%sreturn cls(value)\n" % (cl*indent*' ')
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
     def get_rand_py_def(self, indent=4, level=0):
         """Return rand function"""
         cl = 0
@@ -234,7 +276,7 @@ class Bits(object):
         if self.enum is None:
             out += "%smin_val = 0\n" % (cl*indent*' ')
             out += "%smax_val = 0x%x\n" % (cl*indent*' ', self.get_bits_mask())
-            out += "%svalue = random.randint(range(min_val, max_val + 1))\n" % (cl*indent*' ')
+            out += "%svalue = random.randint(min_val, max_val)\n" % (cl*indent*' ')
         else:
             enum_def = DefsGen.instance.get_enum(self.enum)
             out += "%svalue = random.choice(list(%s))\n" % (cl*indent*' ',
@@ -258,8 +300,10 @@ class Bits(object):
         out += "%sname = \"%s\"\n" % (cl*indent*' ', self.name)
         out += self.get_init_py_def(indent, cl)
         out += self.get_str_py_def(indent, cl)
+        out += self.get_eq_py_def(indent, cl)
         out += self.get_repr_py_def(indent, cl)
         out += self.get_pack_py_def(indent, cl)
+        out += self.get_unpack_py_def(indent, cl)
         out += self.get_rand_py_def(indent, cl)
         out += self.get_getter_py_def(indent, cl)
         out += self.get_setter_py_def(indent, cl)
@@ -400,6 +444,23 @@ class BitField(object):
         out = shift_indent_level(out, indent, level)
         return out
 
+    def get_eq_py_def(self, indent=4, level=0):
+        """Return __eq__ method for BitField"""
+        cl = 0
+        out = "def __eq__(self, other):\n"
+        cl += 1
+        out += "%sres = True\n" % (cl*indent*' ')
+        for b in self.bits:
+            out += "%sres = res and (self.%s == other.%s)\n" % (cl*indent*' ',
+                                                                b.name,
+                                                                b.name)
+        out += "%sreturn res\n" % (cl*indent*' ')
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+
     def get_pack_py_def(self, indent=4, level=0):
         """Return function which packs all bitfields"""
         cl = 0
@@ -416,6 +477,44 @@ class BitField(object):
         out += "%sreturn ret\n" % (cl*indent*' ')
 
         out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_unpack_py_def(self, indent=4, level=0):
+        """Return BitField Unpacking function"""
+        cl = 0
+        out = "@classmethod\n"
+        out += "def unpack(cls, data):\n"
+        cl += 1
+        for b in self.bits:
+            out += "%s%s = cls.%s.unpack(data)\n" % (cl*indent*' ', b.name,
+                                                     b.get_class_name())
+        out += "%sreturn cls(" % (cl*indent*' ')
+        for b in self.bits:
+            out += "%s=%s, " % (b.name, b.name)
+        out += ")\n"
+
+        out += "\n"
+        # indent to requested level
+        out = shift_indent_level(out, indent, level)
+        return out
+
+    def get_rand_py_def(self, indent=4, level=0):
+        """Return rand function"""
+        cl = 0
+        out = "@classmethod\n"
+        out += "def rand(cls):\n"
+        cl += 1
+        for b in self.bits:
+            out += "%s%s = cls.%s.rand()\n" % (cl*indent*' ', b.name,
+                                               b.get_class_name())
+
+        out += "%sreturn %s(" % (cl*indent*' ', self.get_class_name())
+        for b in self.bits:
+            out += "%s=%s, " % (b.name, b.name)
+        out += ")\n\n"
+
         # indent to requested level
         out = shift_indent_level(out, indent, level)
         return out
@@ -464,7 +563,10 @@ class BitField(object):
         out += self.get_getters_py_def(indent, cl)
         out += self.get_setters_py_def(indent, cl)
         out += self.get_str_py_def(indent, cl)
+        out += self.get_eq_py_def(indent, cl)
         out += self.get_pack_py_def(indent, cl)
+        out += self.get_unpack_py_def(indent, cl)
+        out += self.get_rand_py_def(indent, cl)
 
         out += "\n"
         # indent to requested level
@@ -558,6 +660,9 @@ class StructField(object):
     def get_class_name(self):
         if not(self.is_ctype()):
             return snake_to_camel(self.get_base_type())
+        elif self.is_bitfield():
+            bf = DefsGen.instance.get_bitfield(self.field_type)
+            return bf.get_class_name()
 
     def get_field_fmt(self):
         """Return format used by struct for the whole field
@@ -887,15 +992,18 @@ class MessageElt(object):
         out += "%sva_args = list()\n" % (cl*indent*' ')
         for f in self.fields:
             if f.is_ctype():
-                enum_suffix = ""
+                suffix = ""
                 if f.enum is not None:
-                    enum_suffix = ".value"
+                    suffix = ".value"
+                elif f.is_bitfield():
+                    suffix = ".pack()"
+
                 if not(f.is_array()):
                     out += "%sva_args.append(self.%s%s)\n" % (cl*indent*' ', f.name,
-                                                              enum_suffix)
+                                                              suffix)
                 else:
                     out += "%sva_args.extend([e%s for e in self.%s])\n" % (cl*indent*' ',
-                                                                           enum_suffix,
+                                                                           suffix,
                                                                            f.name)
             else:
                 if not(f.is_array()):
@@ -1007,20 +1115,32 @@ class MessageElt(object):
         byte_offset = 0
         for f in self.fields:
             if f.is_ctype():
-                if f.enum is None:
+                if f.is_bitfield():
+                    rand_func = "%s.rand" % (f.get_class_name())
+                    population_str = ""
+                elif f.enum is None:
                     population_str = "range(%d, %d)" % (f.get_range()[0], f.get_range()[1])
+                    rand_func = "random.choice"
                 else:
+                    rand_func = "random.choice"
                     population_str = "list(%s)" % (snake_to_camel(f.enum))
+
                 if f.is_array() and not(f.array_len > 0):
-                    out += "%s%s = [random.choice(%s) for e in range(random.randint(0, %d))]\n" % (indent*' ',
-                                                                                                   f.name,
-                                                                                                   population_str,
-                                                                                                   256-byte_offset)
+                    out += "%s%s = [%s(%s) for e in range(random.randint(0, %d))]\n" % (indent*' ',
+                                                                                        f.name,
+                                                                                        rand_func,
+                                                                                        population_str,
+                                                                                        256-byte_offset)
                 elif f.is_array() and (f.array_len > 0):
-                    out += "%s%s = [random.choice(%s) for e in range(%d)]\n" % (indent*' ',
-                                                                                f.name,
-                                                                                population_str,
-                                                                                f.array_len)
+                    out += "%s%s = [%s(%s) for e in range(%d)]\n" % (indent*' ',
+                                                                     f.name,
+                                                                     rand_func,
+                                                                     population_str,
+                                                                     f.array_len)
+                elif f.is_bitfield():
+                        out += "%s%s = %s.rand()\n" % (indent*' ',
+                                                       f.name,
+                                                       f.get_class_name())
                 else:
                     if f.enum is None:
                         out += "%s%s = random.randint(*%s)\n" % (indent*' ',
@@ -1200,7 +1320,14 @@ class MessageElt(object):
             offset = 0
             for f in self.fields:
                 if not(f.is_array()):
-                    if f.is_ctype():
+                    if f.is_bitfield():
+                        bf = DefsGen.instance.get_bitfield(f.field_type)
+                        out += "%s%s = %s.unpack(unpacked[%d])\n" % (indent*' ',
+                                                                     f.name,
+                                                                     bf.get_class_name(),
+                                                                     offset)
+                        offset += 1
+                    elif f.is_ctype():
                         if f.enum is None:
                             out += "%s%s = unpacked[%d]\n" % (indent*' ', f.name, offset)
                         else:
