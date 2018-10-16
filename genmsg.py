@@ -17,7 +17,82 @@ def snake_to_camel(word):
     return ''.join(x.capitalize() or '_' for x in word.split('_'))
 
 
-class Bits(object):
+def count_last_empty_lines(s):
+    """Count Empty lines at end of s"""
+    cnt = 0
+    lines = s.splitlines()
+    lines.reverse()
+    for l in lines:
+        if re.match("^\n$", l):
+            cnt += 1
+        else:
+            return cnt
+
+
+def codegen(func):
+    def inner_func(self, indent, level):
+        self.flush_code()
+        self.indent_size = indent
+        out = func(self, indent, level)
+        out = self.end_method(out)
+        out = shift_indent_level(out, indent, level)
+        return out
+    return inner_func
+
+class CodeGen(object):
+    def __init__(self):
+        # current level of indentation
+        self.current_level = 0
+        # Number of space per indentation
+        self.indent_size = 4
+        # buffer of code
+        self.current_code = ""
+
+    def indent(self, lvl=1):
+        """Indent by specified number of level
+
+        lvl can be positive or negative as long as current_level does not become negative
+        """
+        self.current_level += lvl
+        assert self.current_level >= 0, "Level of indentation cannot become negative"""
+
+    def deindent(self, lvl=1):
+        """Deindent by specified number of level
+
+        lvl can be positive or negative as long as current_lvel does not become negative
+        """
+        self.indent(-lvl)
+
+    def code(self, s):
+        """Adds a line of code to current buffer of code
+
+        The indentation is automatically added at the beginning of the line
+        """
+        self.current_code += "%s%s\n" % (self.current_level*self.indent_size*' ', s)
+
+    @classmethod
+    def end_method(cls, method):
+        """Make sure current buffer of code ends with a single empty line"""
+        empty_lines = count_last_empty_lines(method)
+        out = method
+        if empty_lines == 0:
+            out += "\n"
+        elif empty_lines > 1:
+            out = method[:empty_lines-1]
+        return out
+
+    def shift(self, level):
+        """Shift code by level of indentation"""
+        self.current_code = shift_indent_level(self.current_code,
+                                               self.indent_size, level)
+
+    def flush_code(self):
+        """Flush current buffer of code"""
+        self.current_code = ""
+        self.current_level = 0
+
+
+class Bits(CodeGen):
     """Bits description within a bitfield
 
     Describe one or more bit in a bitfield with a name, position, width, description.
@@ -29,7 +104,10 @@ class Bits(object):
         name: string describing the bit(s)
         position: index within the bitfield of the LSB of the bit(s),
         desc: string giving a description of what the bit(s) do
+        prefix: prefix for bitname
+        width: size of the bits
         """
+        CodeGen.__init__(self)
         self.name = name
         self.position = position
         self.desc = desc
@@ -96,34 +174,33 @@ class Bits(object):
         """Mask of the bits, not shifted to position"""
         return (1 << self.width) - 1
 
+    @codegen
     def get_bits_c_def(self, indent=4, level=0):
         """Return string with C define for bits description"""
-        cl = 0
-
-        out = "/* %s */\n" % (self.desc)
+        #self.flush_code()
+        self.code("/* %s */" % (self.desc))
         # Bits position and mask if width > 1
         if self.width == 1:
-            out += "#define %s (1 << %d)\n" % (self.get_bits_name(), self.position)
+            self.code("#define %s (1 << %d)" % (self.get_bits_name(), self.position))
         else:
-            out += "#define %s_MASK (0x%x << %d)\n" % (self.get_bits_name(),
-                                                       self.get_bits_mask(),
-                                                       self.position)
-            out += "#define %s_POS %d\n" % (self.get_bits_name(), self.position)
+            self.code("#define %s_MASK (0x%x << %d)" % (self.get_bits_name(),
+                                                        self.get_bits_mask(),
+                                                        self.position))
+            self.code("#define %s_POS %d" % (self.get_bits_name(), self.position))
 
         # Enums shifted to bits position
         if self.enum is not None:
             enum_def = DefsGen.instance.get_enum(self.enum)
             for e in enum_def.entries:
                 enum_prefix = self.get_bits_name()
-                out += "#define %s_%s (%s << %s_POS)\n" % (enum_prefix,
-                                                           e.get_enum_name(),
-                                                           e.get_enum_name(),
-                                                           self.get_bits_name())
+                self.code("#define %s_%s (%s << %s_POS)" % (enum_prefix,
+                                                            e.get_enum_name(),
+                                                            e.get_enum_name(),
+                                                            self.get_bits_name()))
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        #self.end_method()
+        #self.shift(level)
+        return self.current_code
 
     def get_class_name(self):
         suffix = "_bit"
