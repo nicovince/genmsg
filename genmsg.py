@@ -30,6 +30,7 @@ def count_last_empty_lines(s):
 
 
 def codegen(func):
+    """decorator for function which generates code"""
     def inner_func(self, indent, level):
         self.flush_code()
         self.indent_size = indent
@@ -63,12 +64,21 @@ class CodeGen(object):
         """
         self.indent(-lvl)
 
-    def code(self, s):
+    def code(self, s, newline=True):
         """Adds a line of code to current buffer of code
 
-        The indentation is automatically added at the beginning of the line
+        The indentation is automatically added at the beginning of the line when required
+        newline: when true a carriage return is added"
         """
-        self.current_code += "%s%s\n" % (self.current_level*self.indent_size*' ', s)
+        # indentation required if current buffer is empty or if last char of
+        # buffer is a carriage return
+        if len(self.current_code) == 0 or self.current_code[-1] == "\n":
+            self.current_code += self.current_level * self.indent_size * ' '
+        # Add requested line
+        self.current_code += s
+        # Add newline if requested
+        if newline:
+            self.current_code += "\n"
 
     @classmethod
     def end_method(cls, method):
@@ -177,7 +187,6 @@ class Bits(CodeGen):
     @codegen
     def get_bits_c_def(self, indent=4, level=0):
         """Return string with C define for bits description"""
-        #self.flush_code()
         self.code("/* %s */" % (self.desc))
         # Bits position and mask if width > 1
         if self.width == 1:
@@ -198,8 +207,6 @@ class Bits(CodeGen):
                                                             e.get_enum_name(),
                                                             self.get_bits_name()))
 
-        #self.end_method()
-        #self.shift(level)
         return self.current_code
 
     def get_class_name(self):
@@ -208,163 +215,133 @@ class Bits(CodeGen):
             suffix += "s"
         return snake_to_camel(self.name + suffix)
 
+    @codegen
     def get_init_py_def(self, indent=4, level=0):
         """Return class initializer"""
-        cl = 0
-        out = "%sdef __init__(self, value):\n" % (cl*indent*' ')
-        cl += 1
-        out += "%sself.value = value\n" % (cl*indent*' ')
+        self.code("def __init__(self, value):")
+        self.indent()
+        self.code("self.value = value")
+        return self.current_code
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen
     def get_str_py_def(self, indent=4, level=0):
         """Return __str__ method for Bit"""
-        cl = 0
-        out = "def __str__(self):\n"
-        cl += 1
-        out += "%sreturn \"%s: %%s\" %% (self._value)\n" % (cl*indent*' ',
-                                                            self.name)
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code("def __str__(self):")
+        self.indent()
+        self.code("return \"%s: %%s\" %% (self._value)" % (self.name))
+        return self.current_code
 
+    @codegen
     def get_eq_py_def(self, indent=4, level=0):
         """Return __eq__ method for Bit"""
-        cl = 0
-        out = "def __eq__(self, other):\n"
-        cl += 1
-        out += "%sreturn self.value == other.value\n" % (cl*indent*' ')
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code("def __eq__(self, other):")
+        self.indent()
+        self.code("return self.value == other.value")
+        return self.current_code
 
+    @codegen
     def get_repr_py_def(self, indent=4, level=0):
         """Return __repr__ method for Bit"""
-        cl = 0
-        out = "def __repr__(self):\n"
-        cl += 1
-        out += "%sreturn  \"%s(" % (cl*indent*' ', self.get_class_name())
-        out += "value=%s)\" % (str(self.value))\n"
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code("def __repr__(self):")
+        self.indent()
+        self.code("return \"%s(" % (self.get_class_name()), False)
+        self.code("value=%s)\" % (str(self.value))")
+        return self.current_code
 
+    @codegen
     def get_getter_py_def(self, indent=4, level=0):
         """Return getter definition"""
-        cl = 0
-        out = "%s@property\n" % (cl*indent*' ')
-        out += "%sdef value(self):\n" % (cl*indent*' ')
-        cl += 1
-        out += "%sreturn self._value\n" % (cl*indent*' ')
+        self.code("@property")
+        self.code("def value(self):")
+        self.indent()
+        self.code("return self._value")
+        return self.current_code
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen
     def get_setter_py_def(self, indent=4, level=0):
         """Return setter definition"""
-        cl = 0
-        out = "%s@value.setter\n" % (cl*indent*' ')
-        out += "%sdef value(self, value):\n" % (cl*indent*' ')
-        cl += 1
+        self.code("@value.setter")
+        self.code("def value(self, value):")
+        self.indent()
         # verify value is within range
         if self.enum is None:
             # Check value passed to setter is in valid range or is of the current class
             if self.width == 1:
-                out += "%sassert isinstance(value, self.__class__) or " % (cl*indent*' ')
-                out += "(value == 0) or (value == 1), "
-                out += "\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name)
+                self.code("assert isinstance(value, self.__class__) or ", False)
+                self.code("(value == 0) or (value == 1), ", False)
+                self.code("\"Invalid value %%d for bit %s\" %% (value)" % (self.name))
             else:
-                out += "%sassert isinstance(value, self.__class__) or " % (cl*indent*' ')
-                out += "((value | 0x%x) >> %d) == 0, " % (self.get_bits_mask(),
-                                                          self.width)
-                out += "\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name)
+                self.code("assert isinstance(value, self.__class__) or ", False)
+                self.code("((value | 0x%x) >> %d) == 0, " % (self.get_bits_mask(),
+                                                             self.width),
+                          False)
+                self.code("\"Invalid value %%d for bit %s\" %% (value)\n" % (self.name))
         else:
             # Check value passed to setter is of the current class, the
             # appropriate enum or enum value
             enum_def = DefsGen.instance.get_enum(self.enum)
-            out += "%sassert isinstance(value, self.__class__) or " % (cl*indent*' ')
-            out += "value.__class__.__name__ == \"%s\" or " % (enum_def.get_class_name())
-            out += "value in [e.value for e in list(%s)], " % (enum_def.get_class_name())
-            out += "\"Invalid value %%r for bit %s, must be of kind %s\" %% (value)\n" % (self.name,
-                                                                                          enum_def.get_class_name())
+            self.code("assert isinstance(value, self.__class__) or ", False)
+            self.code("value.__class__.__name__ == \"%s\" or " % (enum_def.get_class_name()),
+                      False)
+            self.code("value in [e.value for e in list(%s)], " % (enum_def.get_class_name()),
+                      False)
+            self.code("\"Invalid value %%r for bit %s, must be of kind %s\" %% (value)" % (self.name,
+                                                                                           enum_def.get_class_name()))
 
-        out += "%sif isinstance(value, self.__class__):\n" % (cl*indent*' ')
-        cl += 1
-        out += "%sself._value = value.value\n" % (cl*indent*' ')
-        cl -= 1
+        self.code("if isinstance(value, self.__class__):")
+        self.indent()
+        self.code("self._value = value.value")
+        self.deindent()
         if self.enum is not None:
-            out += "%selif isinstance(value, int):\n" % (cl*indent*' ')
-            cl += 1
-            out += "%sself._value = %s(value)\n" % (cl*indent*' ',
-                                                    enum_def.get_class_name())
-            cl -= 1
-        out += "%selse:\n" % (cl*indent*' ')
-        cl += 1
-        out += "%sself._value = value\n" % (cl*indent*' ')
+            self.code("elif isinstance(value, int):")
+            self.indent()
+            self.code("self._value = %s(value)" % (enum_def.get_class_name()))
+            self.deindent()
+        self.code("else:")
+        self.indent()
+        self.code("self._value = value")
+        return self.current_code
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen
     def get_pack_py_def(self, indent=4, level=0):
         """Return bit packing function"""
         cl = 0
-        out = "def pack(self):\n"
-        cl += 1
+        self.code("def pack(self):")
+        self.indent()
         if self.enum is None:
-            out += "%sreturn self._value << %d\n" % (cl*indent*' ', self.position)
+            self.code("return self._value << %d" % (self.position))
         else:
-            out += "%sreturn self._value.value << %d\n" % (cl*indent*' ', self.position)
+            self.code("return self._value.value << %d" % (self.position))
+        return self.current_code
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen
     def get_unpack_py_def(self, indent=4, level=0):
         """Return Bit unpacking function"""
         cl = 0
-        out = "@classmethod\n"
-        out += "def unpack(cls, data):\n"
-        cl += 1
-        out += "%svalue = (data >> cls.position) & ((1 << cls.width) - 1)\n" % (cl*indent*' ')
-        out += "%sreturn cls(value)\n" % (cl*indent*' ')
+        self.code("@classmethod")
+        self.code("def unpack(cls, data):")
+        self.indent()
+        self.code("value = (data >> cls.position) & ((1 << cls.width) - 1)")
+        self.code("return cls(value)")
+        return self.current_code
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen
     def get_rand_py_def(self, indent=4, level=0):
         """Return rand function"""
         cl = 0
-        out = "@classmethod\n"
-        out += "def rand(cls):\n"
-        cl += 1
+        self.code("@classmethod")
+        self.code("def rand(cls):")
+        self.indent()
         if self.enum is None:
-            out += "%smin_val = 0\n" % (cl*indent*' ')
-            out += "%smax_val = 0x%x\n" % (cl*indent*' ', self.get_bits_mask())
-            out += "%svalue = random.randint(min_val, max_val)\n" % (cl*indent*' ')
+            self.code("min_val = 0")
+            self.code("max_val = 0x%x" % (self.get_bits_mask()))
+            self.code("value = random.randint(min_val, max_val)")
         else:
             enum_def = DefsGen.instance.get_enum(self.enum)
-            out += "%svalue = random.choice(list(%s))\n" % (cl*indent*' ',
-                                                            enum_def.get_class_name())
+            self.code("value = random.choice(list(%s))" % (enum_def.get_class_name()))
 
-        out += "%sreturn cls(value)\n" % (cl*indent*' ')
-
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code("return cls(value)")
+        return self.current_code
 
     def get_class_py_def(self, indent=4, level=0):
         """Return Bit Class Definition"""
