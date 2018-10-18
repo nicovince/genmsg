@@ -23,29 +23,34 @@ def count_last_empty_lines(s):
     lines = s.splitlines()
     lines.reverse()
     for l in lines:
-        if re.match("^\n$", l):
+        if re.match("^\s*$", l):
             cnt += 1
         else:
             return cnt
 
 
-def codegen(func):
-    """decorator for function which generates code"""
-    def inner_func(self, indent, level):
-        """Decorated function"""
-        # Save buffer and level of indentation
-        save_code = self.current_code
-        save_lvl = self.current_level
-        self.flush_code()
-        self.indent_size = indent
-        out = func(self, indent, level)
-        out = self.end_method(out)
-        out = shift_indent_level(out, indent, level)
-        # Restore buffer and level of indentation
-        self.current_code = save_code
-        self.current_level = save_lvl
-        return out
-    return inner_func
+def codegen(n=1):
+    """decorator for function which generates code
+
+    n : number of empty line at the end of the generated code
+    """
+    def wrap(func):
+        def wrap_func(self, indent=4, level=0):
+            """Decorated function"""
+            # Save buffer and level of indentation
+            save_code = self.current_code
+            save_lvl = self.current_level
+            self.flush_code()
+            self.indent_size = indent
+            out = func(self, indent, level)
+            out = self.finish_statement(out, n)
+            out = shift_indent_level(out, indent, level)
+            # Restore buffer and level of indentation
+            self.current_code = save_code
+            self.current_level = save_lvl
+            return out
+        return wrap_func
+    return wrap
 
 class CodeGen(object):
     def __init__(self):
@@ -94,17 +99,26 @@ class CodeGen(object):
         """
         lines = blk.splitlines()
         for l in lines:
-            self.current_code += "%s%s\n" % (self.current_level * self.indent_size * ' ', l)
+            # Adds indentation on non empty lines
+            if re.match("^\s*$", l) is None:
+                self.current_code += self.current_level * self.indent_size * ' '
+                self.current_code += l
+            self.current_code += "\n"
 
     @classmethod
-    def end_method(cls, method):
-        """Make sure current buffer of code ends with a single empty line"""
-        empty_lines = count_last_empty_lines(method)
-        out = method
-        if empty_lines == 0:
-            out += "\n"
-        elif empty_lines > 1:
-            out = method[:empty_lines-1]
+    def finish_statement(cls, statement, n):
+        """Make sure statement ends with requested number of line
+
+        statement: string to finish with selected number of lines
+        n: number of lines that must finish the statement
+        """
+        empty_lines = count_last_empty_lines(statement)
+        out = statement
+        if empty_lines < n:
+            for i in range(n-empty_lines):
+                out += "\n"
+        elif empty_lines > n:
+            out = statement[:n - empty_lines]
         return out
 
     def shift(self, level):
@@ -200,7 +214,7 @@ class Bits(CodeGen):
         """Mask of the bits, not shifted to position"""
         return (1 << self.width) - 1
 
-    @codegen
+    @codegen(1)
     def get_bits_c_def(self, indent=4, level=0):
         """Return string with C define for bits description"""
         self.code("/* %s */" % (self.desc))
@@ -231,7 +245,7 @@ class Bits(CodeGen):
             suffix += "s"
         return snake_to_camel(self.name + suffix)
 
-    @codegen
+    @codegen()
     def get_init_py_def(self, indent=4, level=0):
         """Return class initializer"""
         self.code("def __init__(self, value):")
@@ -239,7 +253,7 @@ class Bits(CodeGen):
         self.code("self.value = value")
         return self.current_code
 
-    @codegen
+    @codegen()
     def get_str_py_def(self, indent=4, level=0):
         """Return __str__ method for Bit"""
         self.code("def __str__(self):")
@@ -247,7 +261,7 @@ class Bits(CodeGen):
         self.code("return \"%s: %%s\" %% (self._value)" % (self.name))
         return self.current_code
 
-    @codegen
+    @codegen()
     def get_eq_py_def(self, indent=4, level=0):
         """Return __eq__ method for Bit"""
         self.code("def __eq__(self, other):")
@@ -255,7 +269,7 @@ class Bits(CodeGen):
         self.code("return self.value == other.value")
         return self.current_code
 
-    @codegen
+    @codegen()
     def get_repr_py_def(self, indent=4, level=0):
         """Return __repr__ method for Bit"""
         self.code("def __repr__(self):")
@@ -264,7 +278,7 @@ class Bits(CodeGen):
         self.code("value=%s)\" % (str(self.value))")
         return self.current_code
 
-    @codegen
+    @codegen()
     def get_getter_py_def(self, indent=4, level=0):
         """Return getter definition"""
         self.code("@property")
@@ -273,7 +287,7 @@ class Bits(CodeGen):
         self.code("return self._value")
         return self.current_code
 
-    @codegen
+    @codegen()
     def get_setter_py_def(self, indent=4, level=0):
         """Return setter definition"""
         self.code("@value.setter")
@@ -318,7 +332,7 @@ class Bits(CodeGen):
         self.code("self._value = value")
         return self.current_code
 
-    @codegen
+    @codegen()
     def get_pack_py_def(self, indent=4, level=0):
         """Return bit packing function"""
         cl = 0
@@ -330,7 +344,7 @@ class Bits(CodeGen):
             self.code("return self._value.value << %d" % (self.position))
         return self.current_code
 
-    @codegen
+    @codegen()
     def get_unpack_py_def(self, indent=4, level=0):
         """Return Bit unpacking function"""
         cl = 0
@@ -341,7 +355,7 @@ class Bits(CodeGen):
         self.code("return cls(value)")
         return self.current_code
 
-    @codegen
+    @codegen()
     def get_rand_py_def(self, indent=4, level=0):
         """Return rand function"""
         cl = 0
@@ -359,30 +373,29 @@ class Bits(CodeGen):
         self.code("return cls(value)")
         return self.current_code
 
-    @codegen
+    @codegen(2)
     def get_class_py_def(self, indent=4, level=0):
         """Return Bit Class Definition"""
-        cl = 0
         self.code("class %s(object):\n" % (self.get_class_name()))
         self.indent()
         self.code("\"\"\"%s\"\"\"" % (self.desc))
         self.code("position = %d" % (self.position))
         self.code("width = %d" % (self.width))
         self.code("name = \"%s\"" % (self.name))
-        self.codeblock(self.get_init_py_def(indent, cl))
-        self.codeblock(self.get_str_py_def(indent, cl))
-        self.codeblock(self.get_eq_py_def(indent, cl))
-        self.codeblock(self.get_repr_py_def(indent, cl))
-        self.codeblock(self.get_pack_py_def(indent, cl))
-        self.codeblock(self.get_unpack_py_def(indent, cl))
-        self.codeblock(self.get_rand_py_def(indent, cl))
-        self.codeblock(self.get_getter_py_def(indent, cl))
-        self.codeblock(self.get_setter_py_def(indent, cl))
+        self.codeblock(self.get_init_py_def(indent, 0))
+        self.codeblock(self.get_str_py_def(indent, 0))
+        self.codeblock(self.get_eq_py_def(indent, 0))
+        self.codeblock(self.get_repr_py_def(indent, 0))
+        self.codeblock(self.get_pack_py_def(indent, 0))
+        self.codeblock(self.get_unpack_py_def(indent, 0))
+        self.codeblock(self.get_rand_py_def(indent, 0))
+        self.codeblock(self.get_getter_py_def(indent, 0))
+        self.codeblock(self.get_setter_py_def(indent, 0))
 
         return self.current_code
 
 
-class BitField(object):
+class BitField(CodeGen):
     """Bit field description
 
     Describe bits within a field with a name position width and description
@@ -396,6 +409,7 @@ class BitField(object):
         name: Required if bitfield is attached to 'bitfields' list and not to a
               particular field
         """
+        CodeGen.__init__(self)
         self.bitfield = bitfield
         self.name = name
         self.bits = list()
@@ -461,186 +475,142 @@ class BitField(object):
         elif bitwidth <= 32:
             return "uint32_t"
 
+    @codegen()
     def get_bitfield_c_defines(self, indent=4, level=0):
         """Return string containing defines for bitfield"""
-        out = ""
         if self.name is not None:
-            out += "/* %s bitfield */\n" % (self.name)
+            self.code("/* %s bitfield */" % (self.name))
 
         for bit in self.bits:
-            out += bit.get_bits_c_def(indent, level)
-
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+            self.code(bit.get_bits_c_def(indent, level))
+        return self.current_code
 
     def get_class_name(self):
         return snake_to_camel(self.name + "_bit_field")
 
+    @codegen()
     def get_init_py_def(self, indent=4, level=0):
         """Return BitField Initializer"""
-        cl = 0
         bits = list(self.bits)
         bits.sort()
         bits_names = [b.name for b in bits]
-        out = "%sdef __init__(self, %s):\n" % (cl*indent*' ', ', '.join(bits_names))
-        cl += 1
+        self.code("def __init__(self, %s):" % (', '.join(bits_names)))
+        self.indent()
         for b in bits:
-            out += "%sself._%s = self.%s(%s)\n" % (cl*indent*' ', b.name,
-                                                   b.get_class_name(), b.name)
+            self.code("self._%s = self.%s(%s)" % (b.name, b.get_class_name(),
+                                                  b.name))
+        return self.current_code
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_str_py_def(self, indent=4, level=0):
         """Return __str__ method for BitField"""
-        cl = 0
-        out = "def __str__(self):\n"
-        cl += 1
-        out += "%sout = \"\"\n" % (cl*indent*' ')
+        self.code("def __str__(self):")
+        self.indent()
+        self.code("out = \"\"")
         bits = list(self.bits)
         bits.sort()
         bits.reverse()
         for b in bits:
-            out += "%sout += \"%%s\\n\" %% (self._%s)\n" % (cl*indent*' ',
-                                                            b.name)
-        out += "%sreturn out\n" % (cl*indent*' ')
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+            self.code("out += \"%%s\\n\" %% (self._%s)" % (b.name))
+        self.code("return out")
+        return self.current_code
 
+    @codegen()
     def get_eq_py_def(self, indent=4, level=0):
         """Return __eq__ method for BitField"""
-        cl = 0
-        out = "def __eq__(self, other):\n"
-        cl += 1
-        out += "%sres = True\n" % (cl*indent*' ')
+        self.code("def __eq__(self, other):")
+        self.indent()
+        self.code("res = True")
         for b in self.bits:
-            out += "%sres = res and (self.%s == other.%s)\n" % (cl*indent*' ',
-                                                                b.name,
-                                                                b.name)
-        out += "%sreturn res\n" % (cl*indent*' ')
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+            self.code("res = res and (self.%s == other.%s)" % (b.name, b.name))
+        self.code("return res")
+        return self.current_code
 
-
+    @codegen()
     def get_pack_py_def(self, indent=4, level=0):
         """Return function which packs all bitfields"""
-        cl = 0
-        out = "def pack(self):\n"
-        cl += 1
-        out += "%s\"\"\"Pack each bit of bitfield and return packed integer.\"\"\"\n" % (cl*indent*' ')
-        out += "%sret = 0\n" % (cl*indent*' ')
+        self.code("def pack(self):")
+        self.indent()
+        self.code("\"\"\"Pack each bit of bitfield and return packed integer.\"\"\"")
+        self.code("ret = 0")
         bits = list(self.bits)
         bits.sort()
         bits.reverse()
         for b in bits:
-            out += "%sret |= self.%s.pack()\n" % (cl*indent*' ', b.name)
+            self.code("ret |= self.%s.pack()" % (b.name))
+        self.code("return ret")
+        return self.current_code
 
-        out += "%sreturn ret\n" % (cl*indent*' ')
-
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_unpack_py_def(self, indent=4, level=0):
         """Return BitField Unpacking function"""
-        cl = 0
-        out = "@classmethod\n"
-        out += "def unpack(cls, data):\n"
-        cl += 1
+        self.code("@classmethod")
+        self.code("def unpack(cls, data):")
+        self.indent()
         for b in self.bits:
-            out += "%s%s = cls.%s.unpack(data)\n" % (cl*indent*' ', b.name,
-                                                     b.get_class_name())
-        out += "%sreturn cls(" % (cl*indent*' ')
+            self.code("%s = cls.%s.unpack(data)" % (b.name, b.get_class_name()))
+        self.code("return cls(", False)
         for b in self.bits:
-            out += "%s=%s, " % (b.name, b.name)
-        out += ")\n"
+            self.code("%s=%s, " % (b.name, b.name), False)
+        self.code(")")
+        return self.current_code
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_rand_py_def(self, indent=4, level=0):
         """Return rand function"""
-        cl = 0
-        out = "@classmethod\n"
-        out += "def rand(cls):\n"
-        cl += 1
+        self.code("@classmethod")
+        self.code("def rand(cls):")
+        self.indent()
         for b in self.bits:
-            out += "%s%s = cls.%s.rand()\n" % (cl*indent*' ', b.name,
-                                               b.get_class_name())
+            self.code("%s = cls.%s.rand()" % (b.name, b.get_class_name()))
 
-        out += "%sreturn %s(" % (cl*indent*' ', self.get_class_name())
+        self.code("return %s(" % (self.get_class_name()), False)
         for b in self.bits:
-            out += "%s=%s, " % (b.name, b.name)
-        out += ")\n\n"
+            self.code("%s=%s, " % (b.name, b.name), False)
+        self.code(")")
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_getters_py_def(self, indent=4, level=0):
         """Return getters for each bit of the bitfield"""
-        cl = 0
-        out = ""
         for b in self.bits:
-            out += "%s@property\n" % (cl*indent*' ')
-            out += "%sdef %s(self):\n" % (cl*indent*' ', b.name)
-            cl += 1
-            out += "%sreturn self._%s\n\n" % (cl*indent*' ', b.name)
-            cl -= 1
+            self.code("@property")
+            self.code("def %s(self):" % (b.name))
+            self.indent()
+            self.code("return self._%s\n" % (b.name))
+            self.deindent()
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_setters_py_def(self, indent=4, level=0):
         """Return setters for each bit of the bitfield"""
-        cl = 0
-        out = ""
         for b in self.bits:
-            out += "%s@%s.setter\n" % (cl*indent*' ', b.name)
-            out += "%sdef %s(self, value):\n" % (cl*indent*' ', b.name)
-            cl += 1
-            out += "%sself._%s.value = value\n\n" % (cl*indent*' ', b.name)
-            cl -= 1
+            self.code("@%s.setter" % (b.name))
+            self.code("def %s(self, value):" % (b.name))
+            self.indent()
+            self.code("self._%s.value = value\n" % (b.name))
+            self.deindent()
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen(2)
     def get_class_py_def(self, indent=4, level=0):
         """Return string with python class declaration for BitField"""
-        cl = 0
-        out = "%sclass %s(object):\n" % (cl*indent*' ', self.get_class_name())
-        cl += 1
-        out += "%s\"\"\"%s\"\"\"\n" % (cl*indent*' ', self.desc)
+        self.code("class %s(object):" % (self.get_class_name()))
+        self.indent()
+        self.code("\"\"\"%s\"\"\"" % (self.desc))
         # define class for each bit(s) definition
         for b in self.bits:
-            out += b.get_class_py_def(indent, cl)
+            self.codeblock(b.get_class_py_def(indent, 0))
 
-        out += self.get_init_py_def(indent, cl)
-        out += self.get_getters_py_def(indent, cl)
-        out += self.get_setters_py_def(indent, cl)
-        out += self.get_str_py_def(indent, cl)
-        out += self.get_eq_py_def(indent, cl)
-        out += self.get_pack_py_def(indent, cl)
-        out += self.get_unpack_py_def(indent, cl)
-        out += self.get_rand_py_def(indent, cl)
-
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.codeblock(self.get_init_py_def(indent, 0))
+        self.codeblock(self.get_getters_py_def(indent, 0))
+        self.codeblock(self.get_setters_py_def(indent, 0))
+        self.codeblock(self.get_str_py_def(indent, 0))
+        self.codeblock(self.get_eq_py_def(indent, 0))
+        self.codeblock(self.get_pack_py_def(indent, 0))
+        self.codeblock(self.get_unpack_py_def(indent, 0))
+        self.codeblock(self.get_rand_py_def(indent, 0))
+        return self.current_code
 
 
 class StructField(object):
