@@ -32,11 +32,18 @@ def count_last_empty_lines(s):
 def codegen(func):
     """decorator for function which generates code"""
     def inner_func(self, indent, level):
+        """Decorated function"""
+        # Save buffer and level of indentation
+        save_code = self.current_code
+        save_lvl = self.current_level
         self.flush_code()
         self.indent_size = indent
         out = func(self, indent, level)
         out = self.end_method(out)
         out = shift_indent_level(out, indent, level)
+        # Restore buffer and level of indentation
+        self.current_code = save_code
+        self.current_level = save_lvl
         return out
     return inner_func
 
@@ -79,6 +86,15 @@ class CodeGen(object):
         # Add newline if requested
         if newline:
             self.current_code += "\n"
+
+    def codeblock(self, blk):
+        """Adds a block of code to current buffer of code
+
+        Indentation is added for each lines of blk
+        """
+        lines = blk.splitlines()
+        for l in lines:
+            self.current_code += "%s%s\n" % (self.current_level * self.indent_size * ' ', l)
 
     @classmethod
     def end_method(cls, method):
@@ -343,28 +359,27 @@ class Bits(CodeGen):
         self.code("return cls(value)")
         return self.current_code
 
+    @codegen
     def get_class_py_def(self, indent=4, level=0):
         """Return Bit Class Definition"""
         cl = 0
-        out = "\n%sclass %s(object):\n" % (cl*indent*' ', self.get_class_name())
-        cl += 1
-        out += "%s\"\"\"%s\"\"\"\n" % (cl*indent*' ', self.desc)
-        out += "%sposition = %d\n" % (cl*indent*' ', self.position)
-        out += "%swidth = %d\n" % (cl*indent*' ', self.width)
-        out += "%sname = \"%s\"\n" % (cl*indent*' ', self.name)
-        out += self.get_init_py_def(indent, cl)
-        out += self.get_str_py_def(indent, cl)
-        out += self.get_eq_py_def(indent, cl)
-        out += self.get_repr_py_def(indent, cl)
-        out += self.get_pack_py_def(indent, cl)
-        out += self.get_unpack_py_def(indent, cl)
-        out += self.get_rand_py_def(indent, cl)
-        out += self.get_getter_py_def(indent, cl)
-        out += self.get_setter_py_def(indent, cl)
+        self.code("class %s(object):\n" % (self.get_class_name()))
+        self.indent()
+        self.code("\"\"\"%s\"\"\"" % (self.desc))
+        self.code("position = %d" % (self.position))
+        self.code("width = %d" % (self.width))
+        self.code("name = \"%s\"" % (self.name))
+        self.codeblock(self.get_init_py_def(indent, cl))
+        self.codeblock(self.get_str_py_def(indent, cl))
+        self.codeblock(self.get_eq_py_def(indent, cl))
+        self.codeblock(self.get_repr_py_def(indent, cl))
+        self.codeblock(self.get_pack_py_def(indent, cl))
+        self.codeblock(self.get_unpack_py_def(indent, cl))
+        self.codeblock(self.get_rand_py_def(indent, cl))
+        self.codeblock(self.get_getter_py_def(indent, cl))
+        self.codeblock(self.get_setter_py_def(indent, cl))
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        return self.current_code
 
 
 class BitField(object):
