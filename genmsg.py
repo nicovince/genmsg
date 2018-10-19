@@ -1403,9 +1403,10 @@ class EnumEntry(object):
         return self.name.upper()
 
 
-class EnumElt(object):
+class EnumElt(CodeGen):
     """Enumeration object created from dictionary definition"""
     def __init__(self, enum):
+        CodeGen.__init__(self)
         self.enum = enum
         assert "name" in enum.keys(), "Enum is missing name"
         assert "desc" in enum.keys(), "Enum %s is missing desc" % (enum["name"])
@@ -1430,22 +1431,20 @@ class EnumElt(object):
             max_val = max(max_val, entry.value)
         return math.ceil(math.log(max_val + 1, 2))
 
-    def get_enum_c_def(self, indent=4, level=0):
+    @codegen()
+    def get_enum_c_def(self, indent, level):
         """Return string with C enum declaration"""
-        out = "/* %s */\n" % (self.desc)
-        out += "typedef enum %s_e {\n" % (self.name)
+        self.code("/* %s */" % (self.desc))
+        self.code("typedef enum %s_e {" % (self.name))
         max_enum_val = 0
         for e in self.entries:
-            out += "%s%s = %d, /* %s */\n" % (indent*" ",
-                                              e.get_enum_name(), e.value, e.desc)
+            self.code("%s = %d, /* %s */" % (e.get_enum_name(), e.value, e.desc))
             max_enum_val = max(max_enum_val, e.value)
-        out += "%s%s_END = %d\n" % (indent*" ", self.name, max_enum_val+1)
-        out += "} %s_t;\n\n" % (self.name)
+        self.code("%s_END = %d" % (self.name, max_enum_val+1))
+        self.code("} %s_t;\n" % (self.name))
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    #TODO!!!!!!!!!!
     def get_enum_py_def(self, indent=4, level=0):
         """Return string with python enum declaration"""
         out = "# %s\n" % (self.desc)
@@ -1454,10 +1453,10 @@ class EnumElt(object):
             out += "%s%s = %d  # %s\n" % (indent*" ", e.get_enum_name(), e.value, e.desc)
 
         out += "\n"
-        out += self.get_enum_eq_py_def(indent=indent, level=level+1)
-        out += self.get_enum_type_py_def(indent=indent, level=level+1)
-        out += self.get_enum_hash_py_def(indent=indent, level=level+1)
-        out += self.get_enum_default_py_def(indent=indent, level=level+1)
+        out += self.get_enum_eq_py_def(indent, level+1)
+        out += self.get_enum_type_py_def(indent, level+1)
+        out += self.get_enum_hash_py_def(indent, level+1)
+        out += self.get_enum_default_py_def(indent, level+1)
 
         # indent to requested level
         out = shift_indent_level(out, indent, level)
@@ -1466,84 +1465,72 @@ class EnumElt(object):
     def get_class_name(self):
         return snake_to_camel(self.name)
 
+    @codegen()
     def get_enum_eq_py_def(self, indent=4, level=0):
         """Return function which compares enum"""
-        cl = 0
-        out = "def __eq__(self, other):\n"
-        cl += 1
-        out += "%s# This is required because enum imported from different location fails equality tests\n" % (cl*indent*' ')
-        out += "%s# First test the two object have the same class name\n" % (cl*indent*' ')
-        out += "%sif other.__class__.__name__ == self.__class__.__name__:\n" % (cl*indent*' ')
-        cl += 1
-        out += "%s# Then check values\n" % (cl*indent*' ')
-        out += "%sreturn self.value == other.value\n" % (cl*indent*' ')
-        cl -= 1
-        out += "%selse:\n" % (cl*indent*' ')
-        cl += 1
-        out += "%sreturn False\n" % (cl*indent*' ')
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code("def __eq__(self, other):")
+        self.indent()
+        self.code("# This is required because enum imported from different location fails equality tests")
+        self.code("# First test the two object have the same class name")
+        self.code("if other.__class__.__name__ == self.__class__.__name__:")
+        self.indent()
+        self.code("# Then check values")
+        self.code("return self.value == other.value")
+        self.deindent()
+        self.code("else:")
+        self.indent()
+        self.code("return False")
+        return self.current_code
 
+    @codegen()
     def get_enum_type_py_def(self, indent=4, level=0):
         """Generate function used for 'type' parameter during argparse declaration"""
-        cl = 0
-        out = "def %s_type(s):\n" % (self.name)
-        cl += 1
-        out += "%s\"\"\"Return Enum object from string representation\n\n" % (cl*indent*' ')
-        out += "%sUsed in type parameter of argparse declaration\"\"\"\n" % (cl*indent*' ')
-        out += "%stry:\n" % (cl*indent*' ')
-        cl += 1
-        out += "%sif s.isdecimal():\n" % (cl*indent*' ')
+        self.code("def %s_type(s):" % (self.name))
+        self.indent()
+        self.code("\"\"\"Return Enum object from string representation\n")
+        self.code("Used in type parameter of argparse declaration\"\"\"")
+        self.code("try:")
+        self.indent()
+        self.code("if s.isdecimal():")
         # arg is decimal
-        cl += 1
-        out += "%sreturn %s(int(s))\n" % (cl*indent*' ', self.get_class_name())
-        cl -= 1
-        out += "%selse:\n" % (cl*indent*' ')
+        self.indent()
+        self.code("return %s(int(s))" % (self.get_class_name()))
+        self.deindent()
+        self.code("else:")
         # Arg is enum string
-        cl += 1
-        out += "%sreturn %s[s.upper()]\n" % (cl*indent*' ', self.get_class_name())
-        cl -= 1
+        self.indent()
+        self.code("return %s[s.upper()]" % (self.get_class_name()))
+        self.deindent()
 
         # Error handling
-        cl -= 1
-        out += "%sexcept KeyError:\n" % (cl*indent*' ')
-        cl += 1
-        out += "%sraise argparse.ArgumentError()\n" % (cl*indent*' ')
-        cl -= 1
-        out += "%sexcept ValueError:\n" % (cl*indent*' ')
-        cl += 1
-        out += "%sraise argparse.ArgumentError()\n" % (cl*indent*' ')
-        cl -= 1
+        self.deindent()
+        self.code("except KeyError:")
+        self.indent()
+        self.code("raise argparse.ArgumentError()")
+        self.deindent()
+        self.code("except ValueError:")
+        self.indent()
+        self.code("raise argparse.ArgumentError()")
+        self.deindent()
+        return self.current_code
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_enum_hash_py_def(self, indent=4, level=0):
         """Generate __hash__ function for enum to be able to use enum in dictionaries"""
-        cl = 0
-        out = "def __hash__(self):\n"
-        cl += 1
-        out += "%sreturn hash((self.name, self.value))\n\n" % (cl*indent*' ')
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code("def __hash__(self):")
+        self.indent()
+        self.code("return hash((self.name, self.value))")
+        return self.current_code
 
+    @codegen()
     def get_enum_default_py_def(self, indent=4, level=0):
         """Generate function which return default value for enum"""
-        cl = 0
-        out = "@staticmethod\n"
-        out += "def default():\n"
-        cl += 1
-        out += "%sreturn %s.%s\n" % (cl*indent*' ', self.get_class_name(),
-                                     self.get_lowest_enum().name.upper())
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code("@staticmethod")
+        self.code("def default():")
+        self.indent()
+        self.code("return %s.%s" % (self.get_class_name(),
+                                    self.get_lowest_enum().name.upper()))
+        return self.current_code
 
     def check_enum(self):
         """Verify enum has only one instance of each name and value"""
@@ -1736,7 +1723,7 @@ class DefsGen(object):
 
                 # Write Enums C definitions
                 for e in self.enums:
-                    h_fd.write(e.get_enum_c_def())
+                    h_fd.write(e.get_enum_c_def(self.indent, 0))
 
                 # Write Bitfield C definitions
                 for bf in self.bitfields:
