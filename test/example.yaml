@@ -1,0 +1,64 @@
+enums:
+- name: name_of_enum
+  desc: "Description of enum"
+  entries:
+  - entry: enum_entry_A
+    desc: "Description of enum entry A"
+    value: 0
+  - entry: enum_entry_B
+    desc: "Description of enum entry B"
+    value: 1
+
+bitfields:
+- name: bitfield_name
+  desc: "Description of bitfield"
+  bits:
+  - name: bit_a
+    position: 0
+    desc: "description of bit_a"
+  - name: bits_b
+    position: 1
+    width: 4
+    enum: name_of_enum
+    desc: "description of multiple bits_b, note that an enum is attached to this bits"
+
+types:
+- name: complex_type
+  desc: "Description of complex type"
+  fields:
+  - name: field_of_c
+    type: uint32_t
+    desc: "desc of field_of_c"
+  - name: field2_of_c
+    type: uint8_t
+    desc: "desc of field2_of_c"
+
+
+
+messages:
+- name: name_of_msg
+  id: 0x01
+  desc: "Description of message"
+  fields:
+  - name: field_a
+    type: uint32_t[3]
+    desc: "description of field_a, note that this is a bounded array"
+  - name: field_B
+    type: uint16_t
+    enum: name_of_enum
+    desc: "description of field_b, note that an enum is attached to this field"
+  - name: field_z
+    type: uint8_t[]
+    desc: "this is an unbounded array, must be at the end"
+
+
+- name: another_message
+  id: 0x02
+  desc: "Description of other message"
+  fields:
+  - name: f1
+    type: bitfield_name
+    desc: "Note that a bitfield is attached to this field"
+  - name: f2
+    type: complex_type
+    desc: "Note that a complex type is attached to this field"
