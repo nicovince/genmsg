@@ -27,6 +27,7 @@ def count_last_empty_lines(s):
             cnt += 1
         else:
             return cnt
+    return cnt
 
 
 def codegen(n=1):
@@ -380,7 +381,7 @@ class Bits(CodeGen):
         return self.current_code
 
     @codegen(2)
-    def get_class_py_def(self, indent=4, level=0):
+    def get_class_py_def(self, indent, level):
         """Return Bit Class Definition"""
         self.code("class %s(object):\n" % (self.get_class_name()))
         self.indent()
@@ -482,7 +483,7 @@ class BitField(CodeGen):
             return "uint32_t"
 
     @codegen()
-    def get_bitfield_c_defines(self, indent=4, level=0):
+    def get_bitfield_c_defines(self, indent, level):
         """Return string containing defines for bitfield"""
         if self.name is not None:
             self.code("/* %s bitfield */" % (self.name))
@@ -599,7 +600,7 @@ class BitField(CodeGen):
         return self.current_code
 
     @codegen(2)
-    def get_class_py_def(self, indent=4, level=0):
+    def get_class_py_def(self, indent, level):
         """Return string with python class declaration for BitField"""
         self.code("class %s(object):" % (self.get_class_name()))
         self.indent()
@@ -801,9 +802,10 @@ class StructField(CodeGen):
         return self.current_code
 
 
-class MessageElt(object):
+class MessageElt(CodeGen):
     """Message object created from dictionary definition"""
     def __init__(self, message):
+        CodeGen.__init__(self)
         self.message = message
         if "id" in message.keys():
             self.id = message["id"]
@@ -834,14 +836,13 @@ class MessageElt(object):
     def get_class_name(self):
         return snake_to_camel(self.name)
 
-    def get_struct_c_def(self, indent=4, level=0):
+    @codegen()
+    def get_struct_c_def(self, indent, level):
         """Return string with C struct declaration of messages"""
-        indent_prefix = level*indent*" "
-
-        out = "/* %s */\n" % (self.desc)
+        self.code("/* %s */" % (self.desc))
         if len(self.fields) > 0:
-            out += "#pragma pack(push, 1)\n"
-            out += "typedef struct {\n"
+            self.code("#pragma pack(push, 1)")
+            self.code("typedef struct {")
 
             for f in self.fields:
                 array_suffix = ""
@@ -856,172 +857,144 @@ class MessageElt(object):
                     else:
                         array_suffix = "[%d]" % (f.array_len)
 
-                out += "%s%s %s%s; /* %s */\n" % (indent*" ",
-                                                  type_str,
-                                                  f.name, array_suffix, f.desc)
+                self.code("%s %s%s; /* %s */" % (type_str, f.name,
+                                                 array_suffix, f.desc))
 
-            out += "} %s_t;\n" % (self.name)
-            out += "#pragma pack(pop)\n"
+            self.code("} %s_t;" % (self.name))
+            self.code("#pragma pack(pop)")
         else:
-            out += "/* No Fields for this message */\n"
+            self.code("/* No Fields for this message */")
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        return self.current_code
 
     def get_define_msg_name(self):
         return self.name.upper() + "_ID"
 
-    def get_define_msg_id_def(self):
-        out = ""
+    @codegen(0)
+    def get_define_msg_id_def(self, indent, level):
         if self.id is not None:
-            out += "#define %s %d\n" % (self.get_define_msg_name(), self.id)
-        return out
+            self.code("#define %s %d" % (self.get_define_msg_name(), self.id))
+        return self.current_code
 
-    def get_class_py_def(self, indent=4, level=0):
+    @codegen(2)
+    def get_class_py_def(self, indent, level):
         """Return string with python class declaration"""
         current_level = 0
 
         # Class definition
-        out = "class %s(object):\n" % snake_to_camel(self.name)
-        current_level = current_level + 1
-        out += "%s\"\"\"%s\"\"\"\n" % (current_level*indent*' ', self.desc)
-        out += "%sn_fields = %d\n\n" % (current_level*indent*" ", len(self.fields))
+        self.code("class %s(object):" % snake_to_camel(self.name))
+        self.indent()
+        self.code("\"\"\"%s\"\"\"" % (self.desc))
+        self.code("n_fields = %d" % (len(self.fields)))
         if self.id is not None:
-            out += "%smsg_id = %d\n\n" % (current_level*indent*" ", self.id)
+            self.code("msg_id = %d" % (self.id))
 
         # methods
-        out += self.get_init_py_def(indent=indent, level=level+1)
-        out += self.get_repr_py_def(indent=indent, level=level+1)
-        out += self.get_str_py_def(indent=indent, level=level+1)
-        out += self.get_eq_py_def(indent=indent, level=level+1)
-        out += self.get_len_py_def(indent=indent, level=level+1)
-        out += self.get_n_fields_py_def(indent=indent, level=level+1)
-        out += self.get_fields_py_def(indent=indent, level=level+1)
-        out += self.get_struct_fmt_py_def(indent=indent, level=level+1)
-        out += self.get_unpack_struct_fmt_py_def(indent=indent, level=level+1)
-        out += self.get_pack_py_def(indent=indent, level=level+1)
-        out += self.get_unpack_py_def(indent=indent, level=level+1)
-        out += self.get_helper_def(indent=indent, level=level+1)
-        out += self.get_rand_py_def(indent=indent, level=level+1)
-        out += self.get_autotest_py_def(indent=indent, level=level+1)
-        out += self.get_argparse_group_py_def(indent=indent, level=level+1)
-        out += self.get_args_handler(indent=indent, level=level+1)
+        self.codeblock(self.get_init_py_def(indent, 0))
+        self.codeblock(self.get_repr_py_def(indent, 0))
+        self.codeblock(self.get_str_py_def(indent, 0))
+        self.codeblock(self.get_eq_py_def(indent, 0))
+        self.codeblock(self.get_len_py_def(indent, 0))
+        self.codeblock(self.get_n_fields_py_def(indent, 0))
+        self.codeblock(self.get_fields_py_def(indent, 0))
+        self.codeblock(self.get_struct_fmt_py_def(indent, 0))
+        self.codeblock(self.get_unpack_struct_fmt_py_def(indent, 0))
+        self.codeblock(self.get_pack_py_def(indent, 0))
+        self.codeblock(self.get_unpack_py_def(indent, 0))
+        self.codeblock(self.get_helper_def(indent, 0))
+        self.codeblock(self.get_rand_py_def(indent, 0))
+        self.codeblock(self.get_autotest_py_def(indent, 0))
+        self.codeblock(self.get_argparse_group_py_def(indent, 0))
+        self.codeblock(self.get_args_handler(indent, 0))
+        return self.current_code
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
-    def get_init_py_def(self, indent=4, level=0):
+    @codegen()
+    def get_init_py_def(self, indent, level):
         """Return initializer method"""
         # Field names of Message
         field_names = [f.name for f in self.fields]
 
-        out = "def __init__(self, %s):\n" % (', '.join(field_names))
-        cl = 1
+        self.code("def __init__(self, %s):" % (', '.join(field_names)))
+        self.indent()
         # assign fields
         for f in self.fields:
             if f.enum is not None and not(f.is_array()):
-                out += "%sassert %s in %s, \"Invalid value for %s (%%s)\" %% (%s)\n" % (cl*indent*' ',
-                                                                                        f.name,
-                                                                                        snake_to_camel(f.enum),
-                                                                                        f.name,
-                                                                                        f.name)
-            elif f.enum is not None and f.is_array():
-                out += "%sfor v in %s:\n" % (cl*indent*' ', f.name)
-                cl += 1
-                out += "%sassert v in %s, \"Invalid value for %s (%%s)\" %% (%s)\n" % (cl*indent*' ',
+                self.code("assert %s in %s, \"Invalid value for %s (%%s)\" %% (%s)" % (f.name,
                                                                                        snake_to_camel(f.enum),
-                                                                                       f.name, f.name)
-                cl -= 1
-            out += "%sself.%s = %s\n" % (cl*indent*' ', f.name, f.name)
-        out += "%sreturn\n\n" % (cl*indent*' ')
+                                                                                       f.name,
+                                                                                       f.name))
+            elif f.enum is not None and f.is_array():
+                self.code("for v in %s:" % (f.name))
+                self.indent()
+                self.code("assert v in %s, \"Invalid value for %s (%%s)\" %% (%s)" % (snake_to_camel(f.enum),
+                                                                                      f.name, f.name))
+                self.deindent()
+            self.code("self.%s = %s" % (f.name, f.name))
+        self.code("return\n")
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
-    def get_n_fields_py_def(self, indent=4, level=0):
+    @codegen()
+    def get_n_fields_py_def(self, indent, level):
         """Return method that compute number of fields in message
         This includes number of fields in complex type fields
         """
-        out = "@classmethod\n"
-        out += "def get_n_fields(cls):\n"
-        cl = 1
-        out += "%sn = 0\n" % (cl*indent*' ')
-        out += "%ssuffix = ''\n" % (cl*indent*' ')
+        self.code("@classmethod")
+        self.code("def get_n_fields(cls):")
+        self.indent()
+        self.code("n = 0")
+        self.code("suffix = ''")
         for f in self.fields:
             if f.is_ctype():
                 if not(f.is_array()):
-                    out += "%sn += 1 # %s\n" % (cl*indent*' ',
-                                                f.name)
+                    self.code("n += 1 # %s" % (f.name))
                 else:
                     if f.array_len > 0:
-                        out += "%sn += %d # %s\n" % (cl*indent*' ',
-                                                     f.array_len,
-                                                     f.name)
+                        self.code("n += %d # %s" % (f.array_len, f.name))
                     else:
-                        out += "%ssuffix = '+' # %s\n" % (cl*indent*' ',
-                                                          f.name)
-                        out += "%sn += 1 # %s\n" % (cl*indent*' ',
-                                                    f.name)
+                        self.code("suffix = '+' # %s" % (f.name))
+                        self.code("n += 1 # %s" % (f.name))
             else:
-                out += "%s(%s_n, %s_suffix) = %s.get_n_fields()\n" % (cl*indent*' ',
-                                                                      f.name,
-                                                                      f.name,
-                                                                      f.get_class_name())
-                out += "%sn += %s_n\n" % (cl*indent*' ', f.name)
-                out += "%ssuffix = %s_suffix\n" % (cl*indent*' ', f.name)
+                self.code("(%s_n, %s_suffix) = %s.get_n_fields()" % (f.name, f.name,
+                                                                     f.get_class_name()))
+                self.code("n += %s_n" % (f.name))
+                self.code("suffix = %s_suffix" % (f.name))
+        self.code("return (n, suffix)")
+        return self.current_code
 
-        out += "%sreturn (n, suffix)\n" % (cl*indent*' ')
-        out += "\n"
-
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_struct_fmt_py_def(self, indent=4, level=0):
         """Return method that dynamically compute struct format"""
         # Current level of indentation
-        out = "@staticmethod\n"
-        out += "def struct_fmt(data):\n"
-        cl = 1
-        out += "%sfmt = \"\"\n" % (cl*indent*' ')
+        self.code("@staticmethod")
+        self.code("def struct_fmt(data):")
+        self.indent()
+        self.code("fmt = \"\"")
         for f in self.fields:
             if f.is_ctype():
                 if not(f.is_array()) or (f.array_len > 0):
-                    out += "%sfmt += \"%s\"\n" % (cl*indent*' ', f.get_field_fmt())
+                    self.code("fmt += \"%s\"" % (f.get_field_fmt()))
                 else:
-                    out += "%sfmt += \"%s\" %% (len(data))\n" % (cl*indent*' ',
-                                                                 f.get_field_fmt())
+                    self.code("fmt += \"%s\" %% (len(data))" % (f.get_field_fmt()))
             else:
                 # Complex type
                 if not(f.is_array()):
-                    out += "%sfmt += %s.struct_fmt(data)\n" % (cl*indent*' ',
-                                                               f.get_class_name())
+                    self.code("fmt += %s.struct_fmt(data)" % (f.get_class_name()))
                 elif f.is_array() and f.array_len > 0:
-                    out += "%sfor e in range(%d):\n" % (cl*indent*' ', f.array_len)
-                    cl += 1
-
-                    out += "%sfmt += %s.struct_fmt(data)\n" % (cl*indent*' ',
-                                                               f.get_class_name())
-                    cl -= 1
+                    self.code("for e in range(%d):" % (f.array_len))
+                    self.indent()
+                    self.code("fmt += %s.struct_fmt(data)" % (f.get_class_name()))
+                    self.deindent()
                 else:
-                    out += "%sfor e in range(len(data)):\n" % (cl*indent*' ')
-                    cl += 1
+                    self.code("for e in range(len(data)):")
+                    self.indent()
 
-                    out += "%sfmt += %s.struct_fmt(data)\n" % (cl*indent*' ',
-                                                               f.get_class_name())
-                    cl -= 1
+                    self.code("fmt += %s.struct_fmt(data)" % (f.get_class_name()))
+                    self.deindent()
 
-        out += "%sreturn fmt\n\n" % (indent*' ')
+        self.code("return fmt")
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_pack_py_def(self, indent=4, level=0):
         """Return packing function"""
         # Field names of message
@@ -1032,10 +1005,10 @@ class MessageElt(object):
                 array_name = "self.%s" % (f.name)
 
         # pack method definition
-        out = "def pack(self):\n"
-        cl = 1
+        self.code("def pack(self):")
+        self.indent()
         pack_va = ", ".join([f.get_pack_va() for f in self.fields])
-        out += "%sva_args = list()\n" % (cl*indent*' ')
+        self.code("va_args = list()")
         for f in self.fields:
             if f.is_ctype():
                 suffix = ""
@@ -1045,119 +1018,103 @@ class MessageElt(object):
                     suffix = ".pack()"
 
                 if not(f.is_array()):
-                    out += "%sva_args.append(self.%s%s)\n" % (cl*indent*' ', f.name,
-                                                              suffix)
+                    self.code("va_args.append(self.%s%s)" % (f.name, suffix))
                 else:
-                    out += "%sva_args.extend([e%s for e in self.%s])\n" % (cl*indent*' ',
-                                                                           suffix,
-                                                                           f.name)
+                    self.code("va_args.extend([e%s for e in self.%s])" % (suffix,
+                                                                          f.name))
             else:
                 if not(f.is_array()):
-                    out += "%sva_args.extend(self.%s.get_fields())\n" % (cl*indent*' ',
-                                                                         f.name)
+                    self.code("va_args.extend(self.%s.get_fields())" % (f.name))
                 else:
-                    out += "%sfor e in self.%s:\n" % (cl*indent*' ', f.name)
-                    cl += 1
-                    out += "%sva_args.extend(e.get_fields())\n" % (cl*indent*' ')
-                    cl -= 1
+                    self.code("for e in self.%s:" % (f.name))
+                    self.indent()
+                    self.code("va_args.extend(e.get_fields())")
+                    self.deindent()
 
-        out += "%sfmt = \"<%%s\" %% (self.struct_fmt(%s))\n" % (cl*indent*" ",
-                                                                array_name)
-        out += "%sreturn struct.pack(fmt, *va_args)\n\n" % (cl*indent*" ")
+        self.code("fmt = \"<%%s\" %% (self.struct_fmt(%s))" % (array_name))
+        self.code("return struct.pack(fmt, *va_args)")
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_fields_py_def(self, indent=4, level=0):
         """Return method definition that return tuple of fields"""
-        out = "def get_fields(self):\n"
+        self.code("def get_fields(self):")
+        self.indent()
         field_names = [f.name for f in self.fields]
         if len(field_names) > 0:
-            out += "%sreturn [self.%s]\n" % (indent*' ', ', self.'.join(field_names))
+            self.code("return [self.%s]" % (', self.'.join(field_names)))
         else:
-            out += "%sreturn []\n" % (indent*' ')
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+            self.code("return []")
+        return self.current_code
 
+    @codegen()
     def get_repr_py_def(self, indent=4, level=0):
         """return __repr__ method for message"""
         # Field names of message
         field_names = [f.name for f in self.fields]
-        out = "def __repr__(self):\n"
-        out += "%sreturn \"%s(" % (indent*" ", snake_to_camel(self.name))
+        self.code("def __repr__(self):")
+        self.indent()
+        self.code("return \"%s(" % (snake_to_camel(self.name)), False)
         if len(field_names) > 0:
-            out += "%s=%%r" % ('=%r, '.join(field_names))
-            out += ")\" %% (self.%s)" % (', self.'.join(field_names))
+            self.code("%s=%%r" % ('=%r, '.join(field_names)), False)
+            self.code(")\" %% (self.%s)" % (', self.'.join(field_names)), False)
         else:
-            out += ")\""
-        out += "\n\n"
+            self.code(")\"", False)
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_str_py_def(self, indent=4, level=0):
         """return __str__ method for message"""
         # Field names of message
-        out = "def __str__(self):\n"
-        out += "%sout = \"%s:\\n\"\n" % (indent*' ', self.name)
+        self.code("def __str__(self):")
+        self.indent()
+        self.code("out = \"%s:\\n\"" % (self.name))
         for f in self.fields:
             if f.enum is None:
-                out += "%sout += \"  %s: %%s\\n\" %% (str(self.%s))\n" % (indent*' ',
-                                                                          f.name, f.name)
+                self.code("out += \"  %s: %%s\\n\" %% (str(self.%s))" % (f.name, f.name))
             else:
                 if not(f.is_array()):
-                    out += "%sout += \"  %s: %%s\\n\" %% (%s(self.%s).name)\n" % (indent*' ',
-                                                                                  f.name,
-                                                                                  snake_to_camel(f.enum),
-                                                                                  f.name)
+                    self.code("out += \"  %s: %%s\\n\" %% (%s(self.%s).name)" % (f.name,
+                                                                                 snake_to_camel(f.enum),
+                                                                                 f.name))
                 else:
-                    out += "%sl = [%s(v).name for v in self.%s]\n" % (indent*' ',
-                                                                      snake_to_camel(f.enum),
-                                                                      f.name)
-                    out += "%sout += \"  %s: %%s\\n\" %% (l)\n" % (indent*' ', f.name)
-        out += "%sreturn out\n\n" % (indent*' ')
+                    self.code("l = [%s(v).name for v in self.%s]" % (snake_to_camel(f.enum),
+                                                                     f.name))
+                    self.code("out += \"  %s: %%s\\n\" %% (l)" % (f.name))
+        self.code("return out")
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_len_py_def(self, indent=4, level=0):
         """Return method capable of counting message object length"""
-        out = "def __len__(self):\n"
+        self.code("def __len__(self):")
+        self.indent()
         array_name = "None"
         for f in self.fields:
             if f.is_array():
                 array_name = "self.%s" % f.name
                 break
 
-        out += "%sreturn struct.calcsize('<%%s' %% self.struct_fmt(%s))\n\n" % (indent*' ',
-                                                                                array_name)
+        self.code("return struct.calcsize('<%%s' %% self.struct_fmt(%s))" % (array_name))
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_eq_py_def(self, indent=4, level=0):
         """Return __eq__ method"""
-        out = "def __eq__(self, other):\n"
-        out += "%sres = True\n" % (indent*' ')
+        self.code("def __eq__(self, other):")
+        self.indent()
+        self.code("res = True")
         for f in self.fields:
-            out += "%sres = res and (self.%s == other.%s)\n" % (indent*' ',
-                                                                f.name, f.name)
-        out += "%sreturn res\n\n" % (indent*' ')
+            self.code("res = res and (self.%s == other.%s)" % (f.name, f.name))
+        self.code("return res")
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_rand_py_def(self, indent=4, level=0):
         """Return method which create a random message"""
-        out = "@classmethod\n"
-        out += "def rand(cls):\n"
+        self.code("@classmethod")
+        self.code("def rand(cls):")
+        self.indent()
         byte_offset = 0
         for f in self.fields:
             if f.is_ctype():
@@ -1172,197 +1129,171 @@ class MessageElt(object):
                     population_str = "list(%s)" % (snake_to_camel(f.enum))
 
                 if f.is_array() and not(f.array_len > 0):
-                    out += "%s%s = [%s(%s) for e in range(random.randint(0, %d))]\n" % (indent*' ',
-                                                                                        f.name,
-                                                                                        rand_func,
-                                                                                        population_str,
-                                                                                        256-byte_offset)
+                    self.code("%s = [%s(%s) for e in range(random.randint(0, %d))]" % (f.name,
+                                                                                       rand_func,
+                                                                                       population_str,
+                                                                                       256-byte_offset))
                 elif f.is_array() and (f.array_len > 0):
-                    out += "%s%s = [%s(%s) for e in range(%d)]\n" % (indent*' ',
-                                                                     f.name,
-                                                                     rand_func,
-                                                                     population_str,
-                                                                     f.array_len)
+                    self.code("%s = [%s(%s) for e in range(%d)]" % (f.name,
+                                                                    rand_func,
+                                                                    population_str,
+                                                                    f.array_len))
                 elif f.is_bitfield():
-                        out += "%s%s = %s.rand()\n" % (indent*' ',
-                                                       f.name,
-                                                       f.get_class_name())
+                        self.code("%s = %s.rand()" % (f.name,
+                                                      f.get_class_name()))
                 else:
                     if f.enum is None:
-                        out += "%s%s = random.randint(*%s)\n" % (indent*' ',
-                                                                 f.name,
-                                                                 f.get_range())
+                        self.code("%s = random.randint(*%s)" % (f.name,
+                                                                f.get_range()))
                     else:
-                        out += "%s%s = random.choice(%s)\n" % (indent*' ',
-                                                               f.name,
-                                                               population_str)
+                        self.code("%s = random.choice(%s)" % (f.name,
+                                                              population_str))
 
             else:
                 if f.is_array():
                     if f.array_len > 0:
                         n = f.array_len
-                        out += "%s%s = [%s.rand() for e in range(%d)]\n" % (indent*' ',
-                                                                            f.name,
-                                                                            snake_to_camel(f.get_base_type()),
-                                                                            n)
+                        self.code("%s = [%s.rand() for e in range(%d)]" % (f.name,
+                                                                           snake_to_camel(f.get_base_type()),
+                                                                           n))
                     else:
                         # TODO: use space left instead of 255
-                        out += "%sn = random.randint(1, int(255/struct.calcsize(%s.struct_fmt(None))))\n" % (indent*' ',
-                                                                                                             f.get_class_name())
-                        out += "%s%s = [%s.rand() for e in range(int(n))]\n" % (indent*' ',
-                                                                                f.name,
-                                                                                f.get_class_name())
+                        self.code("n = random.randint(1, int(255/struct.calcsize(%s.struct_fmt(None))))" % (f.get_class_name()))
+                        self.code("%s = [%s.rand() for e in range(int(n))]" % (f.name,
+                                                                               f.get_class_name()))
                 else:
-                    out += "%s%s = %s.rand()\n" % (indent*' ',
-                                                   f.name,
-                                                   snake_to_camel(f.field_type))
+                    self.code("%s = %s.rand()" % (f.name,
+                                                  snake_to_camel(f.field_type)))
 
-        out += "%sreturn %s(" % (indent*' ', snake_to_camel(self.name))
+        self.code("return %s(" % (snake_to_camel(self.name)), False)
         for f in self.fields:
-            out += "%s=%s, " % (f.name, f.name)
+            self.code("%s=%s, " % (f.name, f.name), False)
 
-        out += ")\n\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code(")")
+        return self.current_code
 
+    @codegen()
     def get_args_handler(self, indent=4, level=0):
         """Return method which process args and return object"""
-        out = "@classmethod\n"
-        out += "def args_handler(cls, args):\n"
+        self.code("@classmethod")
+        self.code("def args_handler(cls, args):")
+        self.indent()
         args = ""
         for f in self.fields:
             if len(args) > 0:
                 args += ", "
             args += "%s=args.%s" % (f.name, f.name)
 
-        out += "%sreturn %s(%s)\n" % (indent*' ', self.get_class_name(), args)
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code("return %s(%s)" % (self.get_class_name(), args))
+        return self.current_code
 
+    @codegen()
     def get_argparse_group_py_def(self, indent=4, level=0):
         """Return method adding option group to subparser for current message"""
-        out = "@classmethod\n"
-        cl = 0
-        out += "def get_argparse_group(cls, subparser):\n"
-        cl += 1
+        self.code("@classmethod")
+        self.code("def get_argparse_group(cls, subparser):")
+        self.indent()
         parser_name = "parser_%s" % (self.name)
         formatter_class_str = "formatter_class=argparse.ArgumentDefaultsHelpFormatter"
-        out += "%s%s = subparser.add_parser('%s', %s, help='%s')\n" % (cl*indent*' ',
-                                                                       parser_name,
-                                                                       self.name,
-                                                                       formatter_class_str,
-                                                                       self.desc)
+        self.code("%s = subparser.add_parser('%s', %s, help='%s')" % (parser_name,
+                                                                      self.name,
+                                                                      formatter_class_str,
+                                                                      self.desc))
         for f in self.fields:
             if f.is_ctype():
-                out += "%s" % (f.get_argparse_decl(parser_name, indent, cl))
+                self.codeblock("%s" % (f.get_argparse_decl(parser_name, indent, 0)))
             else:
-                out += self.get_argparse_decl(parser_name, f, indent, cl)
-        out += "%s%s.set_defaults(func=%s.args_handler)\n" % (indent*' ',
-                                                              parser_name,
-                                                              self.get_class_name())
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+                self.codeblock(self.get_argparse_decl(parser_name, f, indent, 0))
+        self.code("%s.set_defaults(func=%s.args_handler)" % (parser_name,
+                                                             self.get_class_name()))
+        return self.current_code
 
+    @codegen(0)
     def get_argparse_decl(self, parser_name, field, indent=4, level=0):
         """Return instruction to register option to parser
         The fields are given as raw data"""
-        out = "(nargs, suffix) = %s.get_n_fields()\n" % (field.get_class_name())
-        out += "%s.add_argument('--%s', type=int, nargs=nargs)" % (parser_name, field.name,)
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code("(nargs, suffix) = %s.get_n_fields()" % (field.get_class_name()))
+        self.code("%s.add_argument('--%s', type=int, nargs=nargs)" % (parser_name, field.name,))
+        return self.current_code
 
+    @codegen()
     def get_autotest_py_def(self, indent=4, level=0):
         """Return method testing the class"""
-        out = "@classmethod\n"
-        out += "def autotest(cls):\n"
-        out += "%sinst1 = cls.rand()\n" % (indent*' ')
-        out += "%sprint(inst1.pack())\n" % (indent*' ')
-        out += "%sprint(str(inst1))\n" % (indent*' ')
-        out += "%sassert(inst1 == inst1.unpack(inst1.pack()))\n" % (indent*' ')
+        self.code("@classmethod")
+        self.code("def autotest(cls):")
+        self.indent()
+        self.code("inst1 = cls.rand()")
+        self.code("print(inst1.pack())")
+        self.code("print(str(inst1))")
+        self.code("assert(inst1 == inst1.unpack(inst1.pack()))")
+        return self.current_code
 
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_unpack_struct_fmt_py_def(self, indent=4, level=0):
-        out = "@staticmethod\n"
-        out += "def get_unpack_struct_fmt(data):\n"
-        # Current level of indentation
-        cl = 1
+        self.code("@staticmethod")
+        self.code("def get_unpack_struct_fmt(data):")
+        self.indent()
         # Initialize empty format
-        out += "%sfmt = \"\"\n" % (cl*indent*' ')
+        self.code("fmt = \"\"" % ())
         for f in self.fields:
             if f.is_ctype():
                 if not(f.is_array()) or f.array_len > 0:
-                    out += "%sfmt += \"%s\"\n" % (cl*indent*' ', f.get_field_fmt())
+                    self.code("fmt += \"%s\"" % (f.get_field_fmt()))
                 else:
                     # Unknown array size
                     # field format contains %d which needs to be computed at
                     # runtime
-                    out += "%sif type(data) == bytes:\n" % (cl*indent*' ')
-                    cl += 1
-                    out += "%sfmt += \"%s\" %% ((len(data) - struct.calcsize(fmt))/%s)\n" % (cl*indent*' ',
-                                                                                             f.get_field_fmt(),
-                                                                                             struct.calcsize(f.get_fmt()))
-                    cl -= 1
-                    out += "%selse:\n" % (cl*indent*' ')
-                    cl += 1
-                    out += "%sfmt += \"%s\" %% (len(data))\n" % (cl*indent*' ',
-                                                                 f.get_field_fmt())
-                    cl -= 1
+                    self.code("if type(data) == bytes:")
+                    self.indent()
+                    self.code("fmt += \"%s\" %% ((len(data) - struct.calcsize(fmt))/%s)" % (f.get_field_fmt(),
+                                                                                            struct.calcsize(f.get_fmt())))
+                    self.deindent()
+                    self.code("else:")
+                    self.indent()
+                    self.code("fmt += \"%s\" %% (len(data))" % (f.get_field_fmt()))
+                    self.deindent()
             else:
                 # Complex type
                 if not(f.is_array()):
-                    out += "%soffset = struct.calcsize(fmt)\n" % (cl*indent*' ')
+                    self.code("offset = struct.calcsize(fmt)")
                     arg = "struct.calcsize(%s.get_unpack_struct_fmt(data[offset:]))" % (f.get_class_name())
-                    out += "%sfmt += \"%s\" %% (%s)\n" % (cl*indent*' ',
-                                                          f.get_field_fmt(),
-                                                          arg)
+                    self.code("fmt += \"%s\" %% (%s)" % (f.get_field_fmt(), arg))
                 else:
                     # Array of complex type
                     if f.array_len > 0:
                         # Fixed size
-                        out += "%sfor e in range(%d):\n" % (cl*indent*' ', f.array_len)
-                        cl += 1
+                        self.code("for e in range(%d):" % (f.array_len))
+                        self.indent()
                         arg = "struct.calcsize(%s.get_unpack_struct_fmt(None))" % (f.get_class_name())
-                        out += "%sfmt += \"%s\" %% (%s)\n" % (cl*indent*' ',
-                                                              f.get_field_fmt(),
-                                                              arg)
-                        cl -= 1
+                        self.code("fmt += \"%s\" %% (%s)" % (f.get_field_fmt(),
+                                                             arg))
+                        self.deindent()
                     else:
                         # variable size
-                        out += "%sheader_sz = struct.calcsize('<%%s' %% (fmt))\n" % (cl*indent*' ')
-                        out += "%sarray_sz = len(data) - header_sz\n" % (cl*indent*' ')
-                        out += "%selt_sz = struct.calcsize(%s.struct_fmt(None))\n" % (cl*indent*' ', f.get_class_name())
-                        out += "%sfor e in range(int(array_sz/elt_sz)):\n" % (cl*indent*' ')
-                        cl += 1
-                        out += "%sfmt += '%%ds' %% (elt_sz)\n" % (cl*indent*' ')
-                        cl -= 1
+                        self.code("header_sz = struct.calcsize('<%s' % (fmt))")
+                        self.code("array_sz = len(data) - header_sz")
+                        self.code("elt_sz = struct.calcsize(%s.struct_fmt(None))" % (f.get_class_name()))
+                        self.code("for e in range(int(array_sz/elt_sz)):")
+                        self.indent()
+                        self.code("fmt += '%ds' % (elt_sz)")
+                        self.deindent()
+        self.code("return fmt\n")
+        return self.current_code
 
-        out += "%sreturn fmt\n\n" % (cl*indent*' ')
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
 
+    @codegen()
     def get_unpack_py_def(self, indent=4, level=0):
         """return unpack method which convert byte to message object"""
         # Field names of Message
         field_names = [f.name for f in self.fields]
 
-        out = "@classmethod\n"
-        out += "def unpack(cls, data):\n"
+        self.code("@classmethod")
+        self.code("def unpack(cls, data):")
+        self.indent()
 
         if len(self.fields) > 0:
-            out += "%smsg_fmt = \"<%%s\" %% (cls.get_unpack_struct_fmt(data))\n" % (indent*' ')
-            out += "%sunpacked = struct.unpack(msg_fmt, data)\n" % (indent*' ')
+            self.code("msg_fmt = \"<%s\" % (cls.get_unpack_struct_fmt(data))")
+            self.code("unpacked = struct.unpack(msg_fmt, data)")
 
             # Assign each field from raw unpacked
             offset = 0
@@ -1370,90 +1301,82 @@ class MessageElt(object):
                 if not(f.is_array()):
                     if f.is_bitfield():
                         bf = DefsGen.instance.get_bitfield(f.field_type)
-                        out += "%s%s = %s.unpack(unpacked[%d])\n" % (indent*' ',
-                                                                     f.name,
-                                                                     bf.get_class_name(),
-                                                                     offset)
+                        self.code("%s = %s.unpack(unpacked[%d])" % (f.name,
+                                                                    bf.get_class_name(),
+                                                                    offset))
                         offset += 1
                     elif f.is_ctype():
                         if f.enum is None:
-                            out += "%s%s = unpacked[%d]\n" % (indent*' ', f.name, offset)
+                            self.code("%s = unpacked[%d]" % (f.name, offset))
                         else:
-                            out += "%s%s = %s(unpacked[%d])\n" % (indent*' ', f.name,
-                                                                  snake_to_camel(f.enum),
-                                                                  offset)
+                            self.code("%s = %s(unpacked[%d])" % (f.name,
+                                                                 snake_to_camel(f.enum),
+                                                                 offset))
                         offset += 1
                     else:
-                        out += "%s%s = unpacked[%d]\n" % (indent*' ', f.name, offset)
+                        self.code("%s = unpacked[%d]" % (f.name, offset))
                         offset += 1
                 else:
                     if f.is_ctype():
                         if (f.array_len > 0):
                             # Array size is known in advance,
                             # retrieve exact number of elements
-                            out += "%s%s = unpacked[%d:%d]\n" % (indent*' ', f.name,
-                                                                 offset,
-                                                                 offset + f.array_len)
+                            self.code("%s = unpacked[%d:%d]" % (f.name,
+                                                                offset,
+                                                                offset + f.array_len))
                             offset += f.array_len
                         else:
                             # Array size is known at runtime only
                             # Such arrays *must* be at the end of the message definition,
                             # therefore we know there is nothing after.
-                            out += "%s%s = unpacked[%d:]\n" % (indent*' ', f.name, offset)
+                            self.code("%s = unpacked[%d:]" % (f.name, offset))
                         if f.enum is not None:
-                            out += "%s%s = [%s(e) for e in %s]\n" % (indent*' ', f.name,
-                                                                     snake_to_camel(f.enum),
-                                                                     f.name)
+                            self.code("%s = [%s(e) for e in %s]" % (f.name,
+                                                                    snake_to_camel(f.enum),
+                                                                    f.name))
                     else:
                         # Complex type
                         if f.array_len > 0:
-                            out += "%s%s = unpacked[%d:%d]\n" % (indent*' ', f.name,
-                                                                 offset,
-                                                                 offset + f.array_len)
+                            self.code("%s = unpacked[%d:%d]" % (f.name,
+                                                                offset,
+                                                                offset + f.array_len))
                             offset += f.array_len
                         else:
                             # Array size is known at runtime only
                             # Such arrays *must* be at the end of the message definition,
                             # therefore we know there is nothing after.
-                            out += "%s%s = unpacked[%d:]\n" % (indent*' ', f.name, offset)
+                            self.code("%s = unpacked[%d:]" % (f.name, offset))
 
             # Convert bytes of complex type to proper object
             for f in self.fields:
                 if f.is_array():
-                    out += "%s%s = list(%s)\n" % (indent*' ', f.name, f.name)
+                    self.code("%s = list(%s)" % (f.name, f.name))
                 if not f.is_ctype():
                     if not(f.is_array()):
-                        out += "%s%s = %s.unpack(%s)\n" % (indent*' ', f.name,
-                                                           f.get_class_name(),
-                                                           f.name)
+                        self.code("%s = %s.unpack(%s)" % (f.name,
+                                                          f.get_class_name(),
+                                                          f.name))
                     else:
-                        out += "%s%s = [%s.unpack(e) for e in %s]\n" % (indent*" ",
-                                                                        f.name,
-                                                                        f.get_class_name(),
-                                                                        f.name)
+                        self.code("%s = [%s.unpack(e) for e in %s]" % (f.name,
+                                                                       f.get_class_name(),
+                                                                       f.name))
 
-        out += "%sreturn %s(" % (indent*' ', snake_to_camel(self.name))
+        self.code("return %s(" % (snake_to_camel(self.name)), False)
         for f in field_names:
-            out += "%s=%s, " % (f, f)
-        out += ")"
-        out += "\n\n"
+            self.code("%s=%s, " % (f, f), False)
+        self.code(")")
+        return self.current_code
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
-
+    @codegen()
     def get_helper_def(self, indent=4, level=0):
         """Return string which display message format to help out user"""
-        out = "@classmethod\n"
-        out += "def helper(cls):\n"
-        out += "%sprint(\"%s fields:\")\n" % (indent*' ', snake_to_camel(self.name))
+        self.code("@classmethod")
+        self.code("def helper(cls):")
+        self.indent()
+        self.code("print(\"%s fields:\")" % (snake_to_camel(self.name)))
         for f in self.fields:
-            out += "%sprint(\"  %s: %s\")\n" % (indent*' ', f.name, f.field_type)
-
-        out += "\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+            self.code("print(\"  %s: %s\")" % (f.name, f.field_type))
+        return self.current_code
 
     def check_message(self):
         """Verify message has unique field names"""
@@ -1821,8 +1744,8 @@ class DefsGen(object):
 
                 # Write Messages C definitions
                 for m in self.messages:
-                    h_fd.write(m.get_define_msg_id_def())
-                    h_fd.write(m.get_struct_c_def())
+                    h_fd.write(m.get_define_msg_id_def(self.indent, 0))
+                    h_fd.write(m.get_struct_c_def(self.indent, 0))
 
                 # Finish file with footer
                 h_fd.write(self.get_h_footer())
@@ -1841,7 +1764,7 @@ class DefsGen(object):
 
                 # Write Messages python definitions
                 for m in self.messages:
-                    py_fd.write(m.get_class_py_def())
+                    py_fd.write(m.get_class_py_def(self.indent, 0))
 
                 py_fd.write(self.get_msg_creator_py_def())
                 py_fd.write(self.get_update_subparsers_py_def())
