@@ -30,19 +30,24 @@ def count_last_empty_lines(s):
 
 
 def codegen(n=1):
-    """decorator for function which generates code
+    """decorator for methods which generates code
 
     n : number of empty line at the end of the generated code
+    Decorated method MUST have indent and level as last args
+    Decorated method MUST inherits of class CodeGen
     """
     def wrap(func):
-        def wrap_func(self, indent=4, level=0):
+        def wrap_func(*args):
             """Decorated function"""
+            self = args[0]
+            level = args[-1]
+            indent = args[-2]
             # Save buffer and level of indentation
             save_code = self.current_code
             save_lvl = self.current_level
             self.flush_code()
             self.indent_size = indent
-            out = func(self, indent, level)
+            out = func(*args)
             out = self.finish_statement(out, n)
             out = shift_indent_level(out, indent, level)
             # Restore buffer and level of indentation
@@ -51,6 +56,7 @@ def codegen(n=1):
             return out
         return wrap_func
     return wrap
+
 
 class CodeGen(object):
     def __init__(self):
@@ -613,7 +619,7 @@ class BitField(CodeGen):
         return self.current_code
 
 
-class StructField(object):
+class StructField(CodeGen):
     """Field of a structure/message"""
     ctype_range = dict()
     ctype_range["uint8_t"] = [0, 255]
@@ -640,6 +646,7 @@ class StructField(object):
     array_re = re.compile(r"^\w+\[(\d*)\]")
 
     def __init__(self, name, field_type, desc):
+        CodeGen.__init__(self)
         self.name = name
         self.field_type = field_type
         self.desc = desc
@@ -746,10 +753,10 @@ class StructField(object):
                 return "*[e.get_fields() for e in self.%s]" % (self.name)
         return "%sself.%s%s" % (prefix, self.name, suffix)
 
+    @codegen(0)
     def get_argparse_decl(self, parser_name, indent=4, level=0):
-        """Return insctruction to register option to parser"""
+        """Return instruction to register option to parser"""
         help_str = "help='%s'" % self.desc
-        out = ""
         if self.is_ctype():
             if self.enum is None:
                 choices = ""
@@ -761,10 +768,12 @@ class StructField(object):
                 metavar = "metavar=[f(x) for x in %s for f in (lambda x: x.name.lower(), lambda x: x.value)], " % (snake_to_camel(self.enum))
                 default = "default=list(%s)[0].value, " % (snake_to_camel(self.enum))
                 argtype = "type=%s.%s_type, " % (snake_to_camel(self.enum), self.enum)
-                out += "enum_help = list()\n"
-                out += "for e in [e.value for e in %s]:\n" % (snake_to_camel(self.enum))
-                out += "%senum_help.append(\"%%d: %%s\" %% (e, %s(e).name.lower()))\n" % (indent*' ', snake_to_camel(self.enum))
+                self.code("enum_help = list()")
+                self.code("for e in [e.value for e in %s]:" % (snake_to_camel(self.enum)))
+                self.indent()
+                self.code("enum_help.append(\"%%d: %%s\" %% (e, %s(e).name.lower()))" % (snake_to_camel(self.enum)))
 
+                self.deindent()
                 help_str = "help='%s (%%s)' %% (' - '.join(enum_help))" % (self.desc)
             # nargs
             if self.is_array():
@@ -774,24 +783,22 @@ class StructField(object):
                     nargs = "nargs='+', "
             else:
                 nargs = ""
-            out += "%s.add_argument('--%s', %s%s%s%s%s%s)\n" % (parser_name,
-                                                                self.name,
-                                                                argtype,
-                                                                nargs,
-                                                                choices,
-                                                                metavar,
-                                                                default,
-                                                                help_str)
+            self.code("%s.add_argument('--%s', %s%s%s%s%s%s)" % (parser_name,
+                                                                 self.name,
+                                                                 argtype,
+                                                                 nargs,
+                                                                 choices,
+                                                                 metavar,
+                                                                 default,
+                                                                 help_str))
         else:
             # TODO Fix default
             default = [0xA, 0xB]
-            out += "%s.add_argument('--%s', nargs='*', default=%s, %s)\n" % (parser_name,
-                                                                             self.name,
-                                                                             default,
-                                                                             help_str)
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+            self.code("%s.add_argument('--%s', nargs='*', default=%s, %s)" % (parser_name,
+                                                                              self.name,
+                                                                              default,
+                                                                              help_str))
+        return self.current_code
 
 
 class MessageElt(object):
@@ -1238,19 +1245,21 @@ class MessageElt(object):
     def get_argparse_group_py_def(self, indent=4, level=0):
         """Return method adding option group to subparser for current message"""
         out = "@classmethod\n"
+        cl = 0
         out += "def get_argparse_group(cls, subparser):\n"
+        cl += 1
         parser_name = "parser_%s" % (self.name)
         formatter_class_str = "formatter_class=argparse.ArgumentDefaultsHelpFormatter"
-        out += "%s%s = subparser.add_parser('%s', %s, help='%s')\n" % (indent*' ',
+        out += "%s%s = subparser.add_parser('%s', %s, help='%s')\n" % (cl*indent*' ',
                                                                        parser_name,
                                                                        self.name,
                                                                        formatter_class_str,
                                                                        self.desc)
         for f in self.fields:
             if f.is_ctype():
-                out += "%s" % (f.get_argparse_decl(parser_name, indent=indent, level=1))
+                out += "%s" % (f.get_argparse_decl(parser_name, indent, cl))
             else:
-                out += self.get_argparse_decl(parser_name, f, indent=indent, level=1)
+                out += self.get_argparse_decl(parser_name, f, indent, cl)
         out += "%s%s.set_defaults(func=%s.args_handler)\n" % (indent*' ',
                                                               parser_name,
                                                               self.get_class_name())
@@ -1808,7 +1817,7 @@ class DefsGen(object):
 
                 # Write Bitfield C definitions
                 for bf in self.bitfields:
-                    h_fd.write(bf.get_bitfield_c_defines())
+                    h_fd.write(bf.get_bitfield_c_defines(self.indent, 0))
 
                 # Write Messages C definitions
                 for m in self.messages:
@@ -1828,7 +1837,7 @@ class DefsGen(object):
                     py_fd.write(e.get_enum_py_def())
 
                 for bf in self.bitfields:
-                    py_fd.write(bf.get_class_py_def())
+                    py_fd.write(bf.get_class_py_def(self.indent, 0))
 
                 # Write Messages python definitions
                 for m in self.messages:
