@@ -1041,10 +1041,13 @@ class MessageElt(CodeGen):
         self.code("def get_fields(self):")
         self.indent()
         field_names = [f.name for f in self.fields]
-        if len(field_names) > 0:
-            self.code("return [self.%s]" % (', self.'.join(field_names)))
-        else:
-            self.code("return []")
+        self.code("ret = list()")
+        for f in self.fields:
+            suffix = ""
+            if f.enum is not None:
+                suffix = ".value"
+            self.code("ret.append(self.%s%s)" % (f.name, suffix))
+        self.code("return ret")
         return self.current_code
 
     @codegen()

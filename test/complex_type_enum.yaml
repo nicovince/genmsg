@@ -1,0 +1,39 @@
+enums:
+- name: color
+  desc: "Color enum"
+  entries:
+  - entry: red
+    desc: "red color"
+    value: 0
+  - entry: green
+    desc: "green color"
+    value: 1
+  - entry: blue
+    desc: "blue color"
+    value: 2
+
+types:
+- name: canvas
+  desc: "canvas desc"
+  fields:
+  - name: area
+    type: uint8_t
+    desc: "Area covered by the canvas"
+  - name: color
+    type: uint8_t
+    enum: color
+    desc: "Color used in the canvas"
+
+messages:
+- name: museum
+  id: 1
+  desc: "Museum description"
+  fields:
+  - name: num_paintings
+    type: uint8_t
+    desc: "number of painting in the museum"
+  - name: painting
+    type: canvas
+    desc: "Painting description"
+
+
