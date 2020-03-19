@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from enum import Enum
+import time
 import argparse
 import argcomplete
 import array
@@ -168,6 +169,7 @@ class SlipReader(threading.Thread):
                 msg = SlipPayload.get_msg(rx_buf)
                 print(msg)
                 if (self.stop_on_msg_id is None) or (msg.pid == self.stop_on_msg_id):
+                    print("End of reader")
                     return
 
 def slip_transaction(serial_fd, slip_msg, debug=False):
@@ -240,10 +242,13 @@ def main():
 
     # Start reader thread
     slip_reader = SlipReader(fd, payload.pid | 0x80)
+    slip_reader.daemon = True
     slip_reader.start()
 
     # Send data
     fd.write(tx_buf)
+    while True:
+        time.sleep(1)
     # Wait for reader thread to finish
     slip_reader.join(5)
 
