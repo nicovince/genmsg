@@ -168,7 +168,7 @@ class SlipReader(threading.Thread):
             if rx_buf is not None:
                 msg = SlipPayload.get_msg(rx_buf)
                 print(msg)
-                if (self.stop_on_msg_id is None) or (msg.pid == self.stop_on_msg_id):
+                if (msg is not None) and ((self.stop_on_msg_id is None) or (msg.pid == self.stop_on_msg_id)):
                     print("End of reader")
                     return
 
