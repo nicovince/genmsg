@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import re
 from ruamel import yaml
+import os
 import argparse
 import struct
 import math
@@ -1561,14 +1562,14 @@ class EnumElt(CodeGen):
 class DefsGen(object):
     instance = None
 
-    def __init__(self, defs, indent, h_gen, h_dest, py_gen, py_dest):
+    def __init__(self, defs, indent, h_gen, h_dest, py_gen, py_dest, filename_prefix):
         self.defs = defs
         self.indent = indent
         self.h_gen = h_gen
         self.h_dest = h_dest
         self.py_gen = py_gen
         self.py_dest = py_dest
-        self.filename_prefix = "messages"
+        self.filename_prefix = filename_prefix
 
         self.messages = list()
         self.enums = list()
@@ -1785,7 +1786,8 @@ def main():
 
     defs_gen = DefsGen(messages, args.indent,
                        args.h_gen, args.h_dest,
-                       args.py_gen, args.py_dest)
+                       args.py_gen, args.py_dest,
+                       os.path.splitext(args.yaml_file)[0])
     defs_gen.process_defs()
 
 
