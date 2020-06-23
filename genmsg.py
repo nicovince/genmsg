@@ -84,6 +84,11 @@ class CodeGen(object):
         """
         self.indent(-lvl)
 
+    def blankline(self, n=1):
+        """Insert specified number of blank lines"""
+        for i in range(n):
+            self.current_code += "\n"
+
     def code(self, s, newline=True):
         """Adds a line of code to current buffer of code
 
@@ -381,15 +386,16 @@ class Bits(CodeGen):
         self.code("return cls(value)")
         return self.current_code
 
-    @codegen(2)
+    @codegen(1)
     def get_class_py_def(self, indent, level):
         """Return Bit Class Definition"""
-        self.code("class %s(object):\n" % (self.get_class_name()))
+        self.code("class %s(object):" % (self.get_class_name()))
         self.indent()
         self.code("\"\"\"%s\"\"\"" % (self.desc))
         self.code("position = %d" % (self.position))
         self.code("width = %d" % (self.width))
         self.code("name = \"%s\"" % (self.name))
+        self.blankline()
         self.codeblock(self.get_init_py_def(indent, 0))
         self.codeblock(self.get_str_py_def(indent, 0))
         self.codeblock(self.get_eq_py_def(indent, 0))
@@ -891,6 +897,7 @@ class MessageElt(CodeGen):
         self.code("n_fields = %d" % (len(self.fields)))
         if self.id is not None:
             self.code("msg_id = %d" % (self.id))
+        self.blankline()
 
         # methods
         self.codeblock(self.get_init_py_def(indent, 0))
@@ -949,13 +956,13 @@ class MessageElt(CodeGen):
         for f in self.fields:
             if f.is_ctype():
                 if not(f.is_array()):
-                    self.code("n += 1 # %s" % (f.name))
+                    self.code("n += 1  # %s" % (f.name))
                 else:
                     if f.array_len > 0:
-                        self.code("n += %d # %s" % (f.array_len, f.name))
+                        self.code("n += %d  # %s" % (f.array_len, f.name))
                     else:
-                        self.code("suffix = '+' # %s" % (f.name))
-                        self.code("n += 1 # %s" % (f.name))
+                        self.code("suffix = '+'  # %s" % (f.name))
+                        self.code("n += 1  # %s" % (f.name))
             else:
                 self.code("(%s_n, %s_suffix) = %s.get_n_fields()" % (f.name, f.name,
                                                                      f.get_class_name()))
@@ -1063,9 +1070,9 @@ class MessageElt(CodeGen):
         self.code("return \"%s(" % (snake_to_camel(self.name)), False)
         if len(field_names) > 0:
             self.code("%s=%%r" % ('=%r, '.join(field_names)), False)
-            self.code(")\" %% (self.%s)" % (', self.'.join(field_names)), False)
+            self.code(")\" %% (self.%s)" % (', self.'.join(field_names)))
         else:
-            self.code(")\"", False)
+            self.code(")\"")
         return self.current_code
 
     @codegen()
@@ -1452,23 +1459,24 @@ class EnumElt(CodeGen):
         self.code("} %s_t;\n" % (self.name))
         return self.current_code
 
-    #TODO!!!!!!!!!!
-    def get_enum_py_def(self, indent=4, level=0):
+    @codegen(2)
+    def get_enum_py_def(self, indent, level):
         """Return string with python enum declaration"""
-        out = "# %s\n" % (self.desc)
-        out += "class %s(Enum):\n" % (snake_to_camel(self.name))
+        self.code("# %s" % (self.desc))
+        self.code("class %s(Enum):" % (snake_to_camel(self.name)))
+        self.indent()
         for e in self.entries:
-            out += "%s%s = %d  # %s\n" % (indent*" ", e.get_enum_name(), e.value, e.desc)
+            self.code("%s = %d  # %s" % (e.get_enum_name(), e.value, e.desc))
 
-        out += "\n"
-        out += self.get_enum_eq_py_def(indent, level+1)
-        out += self.get_enum_type_py_def(indent, level+1)
-        out += self.get_enum_hash_py_def(indent, level+1)
-        out += self.get_enum_default_py_def(indent, level+1)
+        self.blankline()
+        self.deindent()
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.codeblock(self.get_enum_eq_py_def(indent, level+1))
+        self.codeblock(self.get_enum_type_py_def(indent, level+1))
+        self.codeblock(self.get_enum_hash_py_def(indent, level+1))
+        self.codeblock(self.get_enum_default_py_def(indent, level+1))
+
+        return self.current_code
 
     def get_class_name(self):
         return snake_to_camel(self.name)
@@ -1752,7 +1760,7 @@ class DefsGen(object):
 
                 # Write Enums python definitions
                 for e in self.enums:
-                    py_fd.write(e.get_enum_py_def())
+                    py_fd.write(e.get_enum_py_def(self.indent, 0))
 
                 for bf in self.bitfields:
                     py_fd.write(bf.get_class_py_def(self.indent, 0))
