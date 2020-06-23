@@ -1779,15 +1779,18 @@ def main():
                         help="Enable generation of python files containing struct and enums")
     parser.add_argument("--py-dest", type=str, default="./",
                         help="destination folder for python files")
+    parser.add_argument("--py-name", type=str, default=None,
+                        help="Python filename's suffix (without .py extention)")
     args = parser.parse_args()
 
     msg_file = open(args.yaml_file)
     messages = yaml.safe_load(msg_file)
 
+    if args.py_name is None:
+        args.py_name = os.path.splitext(args.yaml_file)[0]
     defs_gen = DefsGen(messages, args.indent,
                        args.h_gen, args.h_dest,
-                       args.py_gen, args.py_dest,
-                       os.path.splitext(args.yaml_file)[0])
+                       args.py_gen, args.py_dest, args.py_name)
     defs_gen.process_defs()
 
 

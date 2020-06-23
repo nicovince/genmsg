@@ -4,7 +4,7 @@ YAML_FILES="ctypes.yaml ctypes_array.yaml ctypes_and_ctypes_array.yaml complex_t
 
 for y in ${YAML_FILES}; do
   echo "===== Processing $y ====="
-  ../genmsg.py ${y} --py-gen --h-gen
+  ../genmsg.py ${y} --py-gen --h-gen --py-name=messages
   ./autotest.py --autotest
   gcc main.c -o main
 done
