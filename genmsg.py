@@ -844,6 +844,7 @@ class MessageElt(CodeGen):
         if len(self.fields) > 0:
             self.code("#pragma pack(push, 1)")
             self.code("typedef struct {")
+            self.indent();
 
             for f in self.fields:
                 array_suffix = ""
@@ -861,6 +862,7 @@ class MessageElt(CodeGen):
                 self.code("%s %s%s; /* %s */" % (type_str, f.name,
                                                  array_suffix, f.desc))
 
+            self.deindent()
             self.code("} %s_t;" % (self.name))
             self.code("#pragma pack(pop)")
         else:
@@ -1436,15 +1438,17 @@ class EnumElt(CodeGen):
         return math.ceil(math.log(max_val + 1, 2))
 
     @codegen()
-    def get_enum_c_def(self, indent, level):
+    def get_enum_c_def(self, indent=4, level=0):
         """Return string with C enum declaration"""
         self.code("/* %s */" % (self.desc))
         self.code("typedef enum %s_e {" % (self.name))
+        self.indent()
         max_enum_val = 0
         for e in self.entries:
             self.code("%s = %d, /* %s */" % (e.get_enum_name(), e.value, e.desc))
             max_enum_val = max(max_enum_val, e.value)
         self.code("%s_END = %d" % (self.name, max_enum_val+1))
+        self.deindent()
         self.code("} %s_t;\n" % (self.name))
         return self.current_code
 
