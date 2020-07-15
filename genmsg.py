@@ -1619,16 +1619,27 @@ class DefsGen(object):
             return
         for m in self.defs["messages"]:
             msg_elt = MessageElt(m)
+            assert msg_elt.id is not None, "Message %s must have an id field" % (msg_elt.name)
             self.messages.append(msg_elt)
         # Check unicity of messages names
         msg_names = [m.name for m in self.messages]
         dups = set([n for n in msg_names if msg_names.count(n) > 1])
         assert len(msg_names) == len(set(msg_names)), "found %s message(s) duplicated" % (', '.join(dups))
 
-        # Check unicity of messages names
-        msg_ids = [m.id for m in self.messages]
+        # Check unicity of messages ids
+        msg_ids = [m.id for m in self.messages if m.id is not None]
         dups = set([n for n in msg_ids if msg_ids.count(n) > 1])
-        assert len(msg_ids) == len(set(msg_ids)), "found message id %r duplicated" % (dups)
+        if len(msg_ids) != len(set(msg_ids)):
+            assert_msg = ""
+            print("dups: %s" % (dups))
+            for d in dups:
+                dup_names = list()
+                for m in self.messages:
+                    if m.id == d:
+                        dup_names.append(m.name)
+                assert_msg += "id %s duplicated between %s\n" % (d, dup_names)
+
+            assert len(msg_ids) == len(set(msg_ids)), "%s" % (assert_msg)
 
     def process_types_defs(self):
         """Read types definitions"""
