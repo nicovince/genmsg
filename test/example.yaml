@@ -8,6 +8,9 @@ enums:
   - entry: enum_entry_B
     desc: "Description of enum entry B"
     value: 1
+  - entry: enum_entry_C
+    desc: "Description of enum entry C"
+    value: 2
 
 bitfields:
 - name: bitfield_name
@@ -18,9 +21,13 @@ bitfields:
     desc: "description of bit_a"
   - name: bits_b
     position: 1
+    width: 3
+    desc: "description of multiplbe bits_b"
+  - name: bits_c
+    position: 4
     width: 4
     enum: name_of_enum
-    desc: "description of multiple bits_b, note that an enum is attached to this bits"
+    desc: "description of multiple bits_c, note that an enum is attached to this bits and width is overwritten by enum's max bit width"
 
 types:
 - name: complex_type

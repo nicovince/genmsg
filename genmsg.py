@@ -30,6 +30,16 @@ def count_last_empty_lines(s):
             return cnt
     return cnt
 
+def bitwidth_to_ctype(bitwidth):
+    if bitwidth <= 8:
+        return "uint8_t"
+    elif bitwidth <= 16:
+        return "uint16_t"
+    elif bitwidth <= 32:
+        return "uint32_t"
+    else:
+        return None
+
 
 def codegen(n=1):
     """decorator for methods which generates code
@@ -252,6 +262,13 @@ class Bits(CodeGen):
 
         return self.current_code
 
+    @codegen(0)
+    def get_bits_c_struct_field(self, indent=4, level=0):
+        """Return string with definition of a field in a bitfield"""
+        self.code("%s %s : %d;" % (bitwidth_to_ctype(self.width), self.name, self.width),
+                  False)
+        return self.current_code
+
     def get_class_name(self):
         suffix = "_bit"
         if self.width > 1:
@@ -452,7 +469,10 @@ class BitField(CodeGen):
                 # Override bit width from enum required width
                 enum_def = DefsGen.instance.get_enum(enum_name)
                 assert enum_def is not None, "Enum %s must be defined before using it in bitfield %s" % (enum_name, self.name)
-                bit.width = enum_def.get_enum_bit_width()
+                enum_width = enum_def.get_enum_bit_width()
+                if enum_width != bit.width:
+                    print("Warning: width of field %s is %d, attached enum %s width is %d. Override field width." % (bit.name, bit.width, enum_name, enum_width))
+                bit.width = enum_width
 
             # Check bit does not conflicts with each others
             for other_bit in self.bits:
@@ -482,12 +502,7 @@ class BitField(CodeGen):
         """Return matching ctype"""
         bitwidth = self.get_bitwidth()
         assert bitwidth <= 32, "Bitwidth for bitfield %s must not exceed 32 bits" % (self.name)
-        if bitwidth <= 8:
-            return "uint8_t"
-        elif bitwidth <= 16:
-            return "uint16_t"
-        elif bitwidth <= 32:
-            return "uint32_t"
+        return bitwidth_to_ctype(bitwidth)
 
     @codegen()
     def get_bitfield_c_defines(self, indent, level):
@@ -497,6 +512,16 @@ class BitField(CodeGen):
 
         for bit in self.bits:
             self.code(bit.get_bits_c_def(indent, level))
+        return self.current_code
+
+    @codegen()
+    def get_bitfield_c_struct(self, indent, level):
+        self.code("/* %s bitfield structure */" % (self.name))
+        self.code("typedef struct {")
+        for bit in self.bits:
+            self.code(bit.get_bits_c_struct_field(indent, level + 1))
+        self.code("} %s_t;" % self.name)
+
         return self.current_code
 
     def get_class_name(self):
@@ -1755,6 +1780,7 @@ class DefsGen(object):
                 # Write Bitfield C definitions
                 for bf in self.bitfields:
                     h_fd.write(bf.get_bitfield_c_defines(self.indent, 0))
+                    h_fd.write(bf.get_bitfield_c_struct(self.indent, 0))
 
                 # Write Messages C definitions
                 for m in self.messages:
