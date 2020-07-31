@@ -265,7 +265,8 @@ class Bits(CodeGen):
     @codegen(0)
     def get_bits_c_struct_field(self, indent=4, level=0):
         """Return string with definition of a field in a bitfield"""
-        self.code("%s %s : %d;" % (bitwidth_to_ctype(self.width), self.name, self.width),
+        self.code("%s %s : %d; /* %s */" % (bitwidth_to_ctype(self.width),
+                                            self.name, self.width, self.desc),
                   False)
         return self.current_code
 
@@ -708,11 +709,8 @@ class StructField(CodeGen):
     def get_base_type(self):
         """Return Base type for the field
 
-        Either a struct or ctype, for bitfields, the matching ctype is returned
+        Either a struct or ctype.
         """
-        bf = DefsGen.instance.get_bitfield(self.field_type)
-        if bf is not None:
-            return bf.get_base_type()
         return re.sub("\[\d*\]", "", self.field_type)
 
     def is_bitfield(self):
@@ -720,10 +718,7 @@ class StructField(CodeGen):
         return bf is not None
 
     def is_ctype(self):
-        if self.is_bitfield():
-            return True
-        else:
-            return self.get_base_type() in self.ctype_to_struct_fmt.keys()
+        return self.get_base_type() in self.ctype_to_struct_fmt.keys()
 
     def get_range(self):
         """return tuple with min/max value"""
