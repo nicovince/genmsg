@@ -729,7 +729,11 @@ class StructField(CodeGen):
         if self.is_array() and not(self.array_len > 0):
             return None
         else:
-            return struct.calcsize(self.get_field_fmt())
+            if self.is_ctype() or self.is_bitfield():
+                return struct.calcsize(self.get_field_fmt())
+            else:
+                msg = DefsGen.instance.get_message(self.get_base_type())
+                return msg.get_msg_len()
 
     def get_class_name(self):
         if not(self.is_ctype()) and not self.is_bitfield():
@@ -867,9 +871,23 @@ class MessageElt(CodeGen):
     def get_class_name(self):
         return snake_to_camel(self.name)
 
+    def get_msg_len(self):
+        length = 0
+        for f in self.fields:
+            if f.get_field_len() is not None:
+                length += f.get_field_len()
+        return length
+
+    @codegen()
+    def get_msg_len_c_def(self, indent, level):
+        """Return string with message lenth"""
+        self.code("/* %s size */" % (self.name))
+        self.code("#define %s_LENGTH %d" % (self.name.upper(), self.get_msg_len()))
+        return self.current_code
+
     @codegen()
     def get_struct_c_def(self, indent, level):
-        """Return string with C struct declaration of messages"""
+        """Return string with C struct declaration of message"""
         self.code("/* %s */" % (self.desc))
         if len(self.fields) > 0:
             self.code("#pragma pack(push, 1)")
@@ -1638,6 +1656,16 @@ class DefsGen(object):
                 return bf
         return None
 
+    def get_message(self, name):
+        """Return message from its name
+
+        return None when there is no match
+        """
+        for m in self.messages:
+            if m.name == name:
+                return m
+        return None
+
     def process_messages_defs(self):
         """Read message definitions and build objects accordingly"""
         if "messages" not in self.defs.keys():
@@ -1786,6 +1814,7 @@ class DefsGen(object):
                 for m in self.messages:
                     h_fd.write(m.get_define_msg_id_def(self.indent, 0))
                     h_fd.write(m.get_struct_c_def(self.indent, 0))
+                    h_fd.write(m.get_msg_len_c_def(self.indent, 0))
 
                 # Finish file with footer
                 h_fd.write(self.get_h_footer())
