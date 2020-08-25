@@ -732,7 +732,7 @@ class StructField(CodeGen):
             return struct.calcsize(self.get_field_fmt())
 
     def get_class_name(self):
-        if not(self.is_ctype()):
+        if not(self.is_ctype()) and not self.is_bitfield():
             return snake_to_camel(self.get_base_type())
         elif self.is_bitfield():
             bf = DefsGen.instance.get_bitfield(self.field_type)
@@ -742,8 +742,12 @@ class StructField(CodeGen):
         """Return format used by struct for the whole field
         This includes leading %d if the field is an array or complex type
         """
-        if self.is_ctype():
-            fmt = self.ctype_to_struct_fmt[self.get_base_type()]
+        if self.is_ctype() or self.is_bitfield():
+            if self.is_ctype():
+                fmt = self.ctype_to_struct_fmt[self.get_base_type()]
+            else:
+                bf = DefsGen.instance.get_bitfield(self.field_type)
+                fmt = self.ctype_to_struct_fmt[bf.get_base_type()]
             if not self.is_array():
                 out = "%s" % (fmt)
             else:
@@ -974,7 +978,7 @@ class MessageElt(CodeGen):
         self.code("n = 0")
         self.code("suffix = ''")
         for f in self.fields:
-            if f.is_ctype():
+            if f.is_ctype() or f.is_bitfield():
                 if not(f.is_array()):
                     self.code("n += 1  # %s" % (f.name))
                 else:
@@ -1000,7 +1004,7 @@ class MessageElt(CodeGen):
         self.indent()
         self.code("fmt = \"\"")
         for f in self.fields:
-            if f.is_ctype():
+            if f.is_ctype() or f.is_bitfield():
                 if not(f.is_array()) or (f.array_len > 0):
                     self.code("fmt += \"%s\"" % (f.get_field_fmt()))
                 else:
@@ -1040,7 +1044,7 @@ class MessageElt(CodeGen):
         pack_va = ", ".join([f.get_pack_va() for f in self.fields])
         self.code("va_args = list()")
         for f in self.fields:
-            if f.is_ctype():
+            if f.is_ctype() or f.is_bitfield():
                 suffix = ""
                 if f.enum is not None:
                     suffix = ".value"
@@ -1150,7 +1154,7 @@ class MessageElt(CodeGen):
         self.indent()
         byte_offset = 0
         for f in self.fields:
-            if f.is_ctype():
+            if f.is_ctype() or f.is_bitfield():
                 if f.is_bitfield():
                     rand_func = "%s.rand" % (f.get_class_name())
                     population_str = ""
@@ -1172,8 +1176,9 @@ class MessageElt(CodeGen):
                                                                     population_str,
                                                                     f.array_len))
                 elif f.is_bitfield():
-                        self.code("%s = %s.rand()" % (f.name,
-                                                      f.get_class_name()))
+                    print(f.get_class_name())
+                    self.code("%s = %s.rand()" % (f.name,
+                                                  f.get_class_name()))
                 else:
                     if f.enum is None:
                         self.code("%s = random.randint(*%s)" % (f.name,
@@ -1233,7 +1238,7 @@ class MessageElt(CodeGen):
                                                                       formatter_class_str,
                                                                       self.desc))
         for f in self.fields:
-            if f.is_ctype():
+            if f.is_ctype() or f.is_bitfield():
                 self.codeblock("%s" % (f.get_argparse_decl(parser_name, indent, 0)))
             else:
                 self.codeblock(self.get_argparse_decl(parser_name, f, indent, 0))
@@ -1269,7 +1274,7 @@ class MessageElt(CodeGen):
         # Initialize empty format
         self.code("fmt = \"\"" % ())
         for f in self.fields:
-            if f.is_ctype():
+            if f.is_ctype() or f.is_bitfield():
                 if not(f.is_array()) or f.array_len > 0:
                     self.code("fmt += \"%s\"" % (f.get_field_fmt()))
                 else:
@@ -1384,7 +1389,7 @@ class MessageElt(CodeGen):
             for f in self.fields:
                 if f.is_array():
                     self.code("%s = list(%s)" % (f.name, f.name))
-                if not f.is_ctype():
+                if not f.is_ctype() and not f.is_bitfield():
                     if not(f.is_array()):
                         self.code("%s = %s.unpack(%s)" % (f.name,
                                                           f.get_class_name(),
