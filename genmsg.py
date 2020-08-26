@@ -726,6 +726,7 @@ class StructField(CodeGen):
             return self.ctype_range[self.get_base_type()]
 
     def get_field_len(self):
+        """Return size of field, None for unbounded arrays"""
         if self.is_array() and not(self.array_len > 0):
             return None
         else:
@@ -1614,12 +1615,13 @@ class EnumElt(CodeGen):
         return entries[0]
 
 
-class DefsGen(object):
+class DefsGen(CodeGen):
     instance = None
 
     def __init__(self, defs, indent, h_gen, h_dest, py_gen, py_dest, filename_prefix):
+        CodeGen.__init__(self)
         self.defs = defs
-        self.indent = indent
+        self.indent_width = indent
         self.h_gen = h_gen
         self.h_dest = h_dest
         self.py_gen = py_gen
@@ -1718,126 +1720,120 @@ class DefsGen(object):
             bf = BitField(bf)
             self.bitfields.append(bf)
 
-    def get_h_header(self):
+    @codegen(1)
+    def get_h_header(self, indent=4, level=0):
         define = "__" + self.filename_prefix.upper() + "_H__"
-        s = "#ifndef %s\n" % define
-        s += "#define %s\n\n" % define
-        s += "#include <stdint.h>\n\n"
-        s += "#define %s\n\n" % define
-        return s
+        self.code("#ifndef %s" % (define))
+        self.code("#define %s\n" % (define))
+        self.code("#include <stdint.h>\n")
+        return self.current_code
 
-    def get_h_footer(self):
+    @codegen(0)
+    def get_h_footer(self, indent=4, level=0):
         define = "__" + self.filename_prefix.upper() + "_H__"
-        s = "#endif // %s\n" % define
-        return s
+        self.code("#endif // %s" % (define))
+        return self.current_code
 
-    def get_py_header(self):
-        s = "#!/usr/bin/env python3\n"
-        s += "from enum import Enum\n"
-        s += "import random\n"
-        s += "import argparse\n"
-        s += "import struct\n\n\n"
-        return s
+    @codegen(1)
+    def get_py_header(self, indent=4, level=0):
+        self.code("#!/usr/bin/env python3")
+        self.code("from enum import Enum")
+        self.code("import random")
+        self.code("import argparse")
+        self.code("import struct")
+        return self.current_code
 
+    @codegen(2)
     def get_update_subparsers_py_def(self, indent=4, level=0):
         """Return function which update parser with subparsers for each message"""
-        out = "def update_subparsers(subparsers):\n"
+        self.code("def update_subparsers(subparsers):")
         if len(self.messages) == 0:
-            out += "%sreturn\n" % (indent*' ')
+            self.code("%sreturn" % (indent*' '))
         for m in self.messages:
             if m.id is None:
                 continue
-            out += "%smsg_map['%s'].get_argparse_group(subparsers)\n" % (indent*' ',
-                                                                         m.get_class_name())
-        out += "\n\n"
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+            self.code("%smsg_map['%s'].get_argparse_group(subparsers)" % (indent*' ',
+                                                                          m.get_class_name()))
 
+        return self.current_code
+
+    @codegen(2)
     def get_msg_creator_py_def(self, indent=4, level=0):
         """Return function capable of returning message from id and data"""
-        cl = 0
-        out = "msg_map = dict()\n"
+        self.code("msg_map = dict()")
         for m in self.messages:
             if m.id is None:
                 continue
             msg_class_name = snake_to_camel(m.name)
-            out += "msg_map[%s.msg_id] = %s\n" % (msg_class_name, msg_class_name)
-            out += "msg_map[\"%s\"] = %s\n" % (msg_class_name, msg_class_name)
-        out += "\n\n"
-        out += "def msg_creator(msg_id, msg_len, data):\n"
-        cl += 1
-        indent_prefix = cl*indent*' '
-        out += "%sif msg_id in msg_map.keys():\n" % (indent_prefix)
-        cl += 1
-        indent_prefix = cl*indent*' '
-        out += "%sreturn msg_map[msg_id].unpack(data)\n" % (indent_prefix)
-        cl -= 1
-        indent_prefix = cl*indent*' '
-        out += "%selse:\n" % (indent_prefix)
-        cl += 1
-        indent_prefix = cl*indent*' '
-        out += "%sreturn data\n\n\n" % (indent_prefix)
+            self.code("msg_map[%s.msg_id] = %s" % (msg_class_name, msg_class_name))
+            self.code("msg_map[\"%s\"] = %s" % (msg_class_name, msg_class_name))
+        self.blankline(2)
 
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+        self.code("def msg_creator(msg_id, msg_len, data):")
+        self.indent()
+        self.code("if msg_id in msg_map.keys():")
+        self.indent()
+        self.code("return msg_map[msg_id].unpack(data)")
+        self.deindent()
+        self.code("else:")
+        self.indent()
+        self.code("return data")
 
+        return self.current_code
+
+    @codegen(2)
     def get_autotest_py_def(self, indent=4, level=0):
-        out = "def autotest():\n"
+        self.code("def autotest():")
+        self.indent()
         if len(self.messages) == 0:
-            out += "%sreturn\n" % (indent*' ')
+            self.code("return")
         for m in self.messages:
-            out += "%s%s.autotest()\n" % (indent*' ', snake_to_camel(m.name))
-        out += "\n\n"
-
-        # indent to requested level
-        out = shift_indent_level(out, indent, level)
-        return out
+            self.code("%s.autotest()" % (snake_to_camel(m.name)))
+        return self.current_code
 
     def process_defs(self):
         if self.h_gen:
             h_file = self.h_dest + "/" + self.filename_prefix + ".h"
             with open(h_file, 'w') as h_fd:
-                h_fd.write(self.get_h_header())
+                h_fd.write(self.get_h_header(self.indent_width, 0))
 
                 # Write Enums C definitions
                 for e in self.enums:
-                    h_fd.write(e.get_enum_c_def(self.indent, 0))
+                    h_fd.write(e.get_enum_c_def(self.indent_width, 0))
 
                 # Write Bitfield C definitions
                 for bf in self.bitfields:
-                    h_fd.write(bf.get_bitfield_c_defines(self.indent, 0))
-                    h_fd.write(bf.get_bitfield_c_struct(self.indent, 0))
+                    h_fd.write(bf.get_bitfield_c_defines(self.indent_width, 0))
+                    h_fd.write(bf.get_bitfield_c_struct(self.indent_width, 0))
 
                 # Write Messages C definitions
                 for m in self.messages:
-                    h_fd.write(m.get_define_msg_id_def(self.indent, 0))
-                    h_fd.write(m.get_struct_c_def(self.indent, 0))
-                    h_fd.write(m.get_msg_len_c_def(self.indent, 0))
+                    h_fd.write(m.get_define_msg_id_def(self.indent_width, 0))
+                    h_fd.write(m.get_struct_c_def(self.indent_width, 0))
+                    h_fd.write(m.get_msg_len_c_def(self.indent_width, 0))
 
                 # Finish file with footer
-                h_fd.write(self.get_h_footer())
+                h_fd.write(self.get_h_footer(self.indent_width, 0))
 
         if self.py_gen:
             py_file = self.py_dest + "/" + self.filename_prefix + ".py"
             with open(py_file, 'w') as py_fd:
-                py_fd.write(self.get_py_header())
+                py_fd.write(self.get_py_header(self.indent_width, 0))
 
                 # Write Enums python definitions
                 for e in self.enums:
-                    py_fd.write(e.get_enum_py_def(self.indent, 0))
+                    py_fd.write(e.get_enum_py_def(self.indent_width, 0))
 
                 for bf in self.bitfields:
-                    py_fd.write(bf.get_class_py_def(self.indent, 0))
+                    py_fd.write(bf.get_class_py_def(self.indent_width, 0))
 
                 # Write Messages python definitions
                 for m in self.messages:
-                    py_fd.write(m.get_class_py_def(self.indent, 0))
+                    py_fd.write(m.get_class_py_def(self.indent_width, 0))
 
-                py_fd.write(self.get_msg_creator_py_def())
-                py_fd.write(self.get_update_subparsers_py_def())
-                py_fd.write(self.get_autotest_py_def())
+                py_fd.write(self.get_msg_creator_py_def(self.indent_width, 0))
+                py_fd.write(self.get_update_subparsers_py_def(self.indent_width, 0))
+                py_fd.write(self.get_autotest_py_def(self.indent_width, 0))
 
                 py_fd.write("# End of file\n")
 
