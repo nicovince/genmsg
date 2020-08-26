@@ -1195,7 +1195,6 @@ class MessageElt(CodeGen):
                                                                     population_str,
                                                                     f.array_len))
                 elif f.is_bitfield():
-                    print(f.get_class_name())
                     self.code("%s = %s.rand()" % (f.name,
                                                   f.get_class_name()))
                 else:
@@ -1735,6 +1734,19 @@ class DefsGen(CodeGen):
         return self.current_code
 
     @codegen(1)
+    def get_max_msg_len(self, indent=4, level=0):
+        max_len = 0
+        max_name = ""
+        for m in self.messages:
+            msg_len = m.get_msg_len()
+            if msg_len > max_len:
+                max_len = msg_len
+                max_name = m.name
+        self.code("/* Maximum message size due to %s */" % (max_name))
+        self.code("#define MAX_MESSAGE_LENGTH %d" % (max_len))
+        return self.current_code
+
+    @codegen(1)
     def get_py_header(self, indent=4, level=0):
         self.code("#!/usr/bin/env python3")
         self.code("from enum import Enum")
@@ -1812,6 +1824,7 @@ class DefsGen(CodeGen):
                     h_fd.write(m.get_struct_c_def(self.indent_width, 0))
                     h_fd.write(m.get_msg_len_c_def(self.indent_width, 0))
 
+                h_fd.write(self.get_max_msg_len(self.indent_width, 0))
                 # Finish file with footer
                 h_fd.write(self.get_h_footer(self.indent_width, 0))
 
