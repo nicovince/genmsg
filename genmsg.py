@@ -1871,7 +1871,9 @@ def main():
     args = parser.parse_args()
 
     msg_file = open(args.yaml_file)
-    messages = yaml.safe_load(msg_file)
+    yml = yaml.YAML(typ='safe', pure=True)
+
+    messages = yml.load(msg_file)
 
     if args.py_name is None:
         args.py_name = os.path.splitext(args.yaml_file)[0]
